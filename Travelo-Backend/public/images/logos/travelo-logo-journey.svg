@@ -1,0 +1,35 @@
+<!-- 
+  TRAVELO LOGO - CONCEPT 2: JOURNEY
+  Airplane & Flight Path Design
+  Perfect for travel booking platforms
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 50">
+  <defs>
+    <linearGradient id="oceanGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#06b6d4"/>
+      <stop offset="100%" style="stop-color:#2563eb"/>
+    </linearGradient>
+    <linearGradient id="primaryGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#2563eb"/>
+      <stop offset="100%" style="stop-color:#1d4ed8"/>
+    </linearGradient>
+  </defs>
+  
+  <!-- Flight Path -->
+  <path d="M15 35 Q35 15 55 20 Q75 25 95 15" fill="none" stroke="url(#oceanGrad)" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="5,3"/>
+  
+  <!-- Airplane -->
+  <g transform="translate(95, 15) rotate(-20)">
+    <ellipse cx="0" cy="0" rx="14" ry="3.5" fill="url(#primaryGrad)"/>
+    <path d="M-3 -2 L-8 -10 L-3 -8 L3 -8 L8 -10 L3 -2 Z" fill="url(#primaryGrad)"/>
+    <path d="M-10 0 L-15 -7 L-10 -4 Z" fill="url(#primaryGrad)"/>
+    <circle cx="6" cy="-1" r="1.2" fill="white" opacity="0.7"/>
+  </g>
+  
+  <!-- Points -->
+  <circle cx="15" cy="35" r="3" fill="#f59e0b"/>
+  <circle cx="95" cy="15" r="3" fill="url(#primaryGrad)"/>
+  
+  <!-- Wordmark -->
+  <text x="120" y="32" font-family="'Inter', Arial, sans-serif" font-size="24" font-weight="800" fill="#1e293b">Travelo</text>
+</svg>

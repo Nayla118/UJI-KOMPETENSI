@@ -1,0 +1,37 @@
+<!-- 
+  TRAVELO LOGO - CONCEPT 3: DISCOVER
+  Globe & Location Pin Design
+  Ideal for destination-focused platforms
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 50">
+  <defs>
+    <linearGradient id="primaryGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#2563eb"/>
+      <stop offset="100%" style="stop-color:#1d4ed8"/>
+    </linearGradient>
+    <linearGradient id="sunsetGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#f59e0b"/>
+      <stop offset="100%" style="stop-color:#ef4444"/>
+    </linearGradient>
+  </defs>
+  
+  <!-- Globe Icon -->
+  <g transform="translate(25, 25)">
+    <circle cx="0" cy="0" r="18" fill="none" stroke="url(#primaryGrad)" stroke-width="2"/>
+    <ellipse cx="0" cy="0" rx="18" ry="6" fill="none" stroke="#e2e8f0" stroke-width="1"/>
+    <ellipse cx="0" cy="0" rx="6" ry="18" fill="none" stroke="#e2e8f0" stroke-width="1"/>
+    
+    <!-- Location Pin -->
+    <g transform="translate(0, -5)">
+      <path d="M0 -10 C-4 -10 -7 -6 -7 -2 C-7 3 0 8 0 8 C0 8 7 3 7 -2 C7 -6 4 -10 0 -10 Z" fill="url(#sunsetGrad)"/>
+      <circle cx="0" cy="-2" r="2.5" fill="white"/>
+    </g>
+    
+    <!-- Abstract Continents -->
+    <path d="M-10 -6 Q-8 -8 -6 -6 Q-4 -4 -6 -2 Q-8 -2 -10 -6" fill="#dbeafe" opacity="0.6"/>
+    <path d="M8 -4 Q10 -6 12 -4 Q12 -2 10 -2 Q8 -2 8 -4" fill="#dbeafe" opacity="0.6"/>
+  </g>
+  
+  <!-- Wordmark -->
+  <text x="55" y="32" font-family="'Inter', Arial, sans-serif" font-size="24" font-weight="800" fill="#1e293b">Travelo</text>
+</svg>

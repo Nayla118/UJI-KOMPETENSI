@@ -1,0 +1,27 @@
+<!-- 
+  TRAVELO LOGO - CONCEPT 1: NAVIGATOR
+  Primary Logo for Light Backgrounds
+  Optimized for white navigation bars
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 50">
+  <defs>
+    <linearGradient id="primaryGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#2563eb"/>
+      <stop offset="100%" style="stop-color:#1d4ed8"/>
+    </linearGradient>
+  </defs>
+  
+  <!-- Compass Icon -->
+  <g transform="translate(25, 25)">
+    <circle cx="0" cy="0" r="18" fill="none" stroke="url(#primaryGrad)" stroke-width="2"/>
+    <circle cx="0" cy="0" r="15" fill="none" stroke="#e2e8f0" stroke-width="1"/>
+    <path d="M0 -13 L3 -4 L0 0 L-3 -4 Z" fill="url(#primaryGrad)"/>
+    <path d="M0 13 L3 4 L0 0 L-3 4 Z" fill="#94a3b8"/>
+    <path d="M13 0 L4 3 L0 0 L4 -3 Z" fill="#94a3b8"/>
+    <path d="M-13 0 L-4 3 L0 0 L-4 -3 Z" fill="#94a3b8"/>
+    <circle cx="0" cy="0" r="2" fill="url(#primaryGrad)"/>
+  </g>
+  
+  <!-- Wordmark -->
+  <text x="55" y="32" font-family="'Inter', Arial, sans-serif" font-size="24" font-weight="800" fill="#1e293b">Travelo</text>
+</svg>

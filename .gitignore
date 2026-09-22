@@ -1,0 +1,54 @@
+.aider*
+
+# === ENV & secrets (Laravel, Node, umum) - PENTING: berisi APP_KEY, MIDTRANS_SERVER_KEY, dsb ===
+.env
+.env.*
+!.env.example
+*.key
+
+# === Firebase / Google services - JANGAN commit yang asli ===
+**/google-services.json
+**/GoogleService-Info.plist
+**/*firebase*.json
+**/*service-account*.json
+**/serviceAccount*.json
+!**/*.example.json
+
+# === Payment keys & certs ===
+*.pem
+*.p12
+*.pfx
+secrets.json
+
+# === Android local & signing keys ===
+local.properties
+**/local.properties
+*.jks
+*.keystore
+keystore.properties
+**/keystore.properties
+
+# === Android / Gradle build output ===
+.gradle/
+.idea/
+*.iml
+build/
+**/build/
+build_output.txt
+
+# === Laravel output (backup, backend sudah punya .gitignore sendiri) ===
+node_modules/
+vendor/
+public/build
+public/hot
+storage/logs/
+*.log
+
+# === ngrok local config ===
+ngrok.yml
+.ngrok/
+
+# === IDE / OS ===
+.vscode/
+.DS_Store
+Thumbs.db

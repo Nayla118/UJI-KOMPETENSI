@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Material3 Light Theme Colors -->
+    <color name="md_theme_light_primary">#6C63FF</color>
+    <color name="md_theme_light_on_primary">#FFFFFF</color>
+    <color name="md_theme_light_primary_container">#E8DFFF</color>
+    <color name="md_theme_light_on_primary_container">#220055</color>
+    <color name="md_theme_light_secondary">#725B2F</color>
+    <color name="md_theme_light_on_secondary">#FFFFFF</color>
+    <color name="md_theme_light_secondary_container">#FDDFA9</color>
+    <color name="md_theme_light_on_secondary_container">#261B00</color>
+    <color name="md_theme_light_tertiary">#536B6B</color>
+    <color name="md_theme_light_on_tertiary">#FFFFFF</color>
+    <color name="md_theme_light_tertiary_container">#D6F1F1</color>
+    <color name="md_theme_light_on_tertiary_container">#0F2626</color>
+    <color name="md_theme_light_error">#B3261E</color>
+    <color name="md_theme_light_error_container">#F9DEDC</color>
+    <color name="md_theme_light_on_error">#FFFFFF</color>
+    <color name="md_theme_light_on_error_container">#410E0B</color>
+    <color name="md_theme_light_background">#FFFBFE</color>
+    <color name="md_theme_light_on_background">#201A1E</color>
+    <color name="md_theme_light_surface">#FFFBFE</color>
+    <color name="md_theme_light_on_surface">#201A1E</color>
+    <color name="md_theme_light_surface_variant">#EADEF8</color>
+    <color name="md_theme_light_on_surface_variant">#48454F</color>
+    <color name="md_theme_light_outline">#79747F</color>
+    <color name="md_theme_light_outline_variant">#CACED1</color>
+    <color name="md_theme_light_scrim">#000000</color>
+    <color name="md_theme_light_inverse_surface">#352F33</color>
+    <color name="md_theme_light_inverse_on_surface">#F8EFF4</color>
+    <color name="md_theme_light_inverse_primary">#D9BFFF</color>
+
+    <!-- Material3 Dark Theme Colors -->
+    <color name="md_theme_dark_primary">#D9BFFF</color>
+    <color name="md_theme_dark_on_primary">#3B0080</color>
+    <color name="md_theme_dark_primary_container">#5435B3</color>
+    <color name="md_theme_dark_on_primary_container">#E8DFFF</color>
+    <color name="md_theme_dark_secondary">#E5C08F</color>
+    <color name="md_theme_dark_on_secondary">#402D04</color>
+    <color name="md_theme_dark_secondary_container">#5B4419</color>
+    <color name="md_theme_dark_on_secondary_container">#FDDFA9</color>
+    <color name="md_theme_dark_tertiary">#BAD5D5</color>
+    <color name="md_theme_dark_on_tertiary">#1B3D3D</color>
+    <color name="md_theme_dark_tertiary_container">#3A5454</color>
+    <color name="md_theme_dark_on_tertiary_container">#D6F1F1</color>
+    <color name="md_theme_dark_error">#F2B8B5</color>
+    <color name="md_theme_dark_error_container">#8B1A16</color>
+    <color name="md_theme_dark_on_error">#601410</color>
+    <color name="md_theme_dark_on_error_container">#F9DEDC</color>
+    <color name="md_theme_dark_background">#201A1E</color>
+    <color name="md_theme_dark_on_background">#EBE1E6</color>
+    <color name="md_theme_dark_surface">#201A1E</color>
+    <color name="md_theme_dark_on_surface">#EBE1E6</color>
+    <color name="md_theme_dark_surface_variant">#49454F</color>
+    <color name="md_theme_dark_on_surface_variant">#CACED1</color>
+    <color name="md_theme_dark_outline">#95919A</color>
+    <color name="md_theme_dark_outline_variant">#49454F</color>
+    <color name="md_theme_dark_scrim">#000000</color>
+    <color name="md_theme_dark_inverse_surface">#EBE1E6</color>
+    <color name="md_theme_dark_inverse_on_surface">#352F33</color>
+    <color name="md_theme_dark_inverse_primary">#6C63FF</color>
+
+    <!-- Custom Colors -->
+    <color name="error_gradient_start">#6C63FF</color>
+    <color name="error_gradient_end">#B366FF</color>
+    <color name="white">#FFFFFF</color>
+    <color name="black">#000000</color>
+    <color name="transparent">#00000000</color>
+    
+    <!-- Scrim Color for Material3 -->
+    <color name="scrimColor">#000000</color>
+</resources>

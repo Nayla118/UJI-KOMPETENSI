@@ -1,0 +1,20 @@
+<!-- 
+  TRAVELO LOGO - MONOCHROME
+  For versatile usage on any background
+  Optimized for single-color applications
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 50">
+  <!-- Compass Icon -->
+  <g transform="translate(25, 25)">
+    <circle cx="0" cy="0" r="18" fill="none" stroke="currentColor" stroke-width="2"/>
+    <circle cx="0" cy="0" r="15" fill="none" stroke="currentColor" stroke-width="1" opacity="0.3"/>
+    <path d="M0 -13 L3 -4 L0 0 L-3 -4 Z" fill="currentColor"/>
+    <path d="M0 13 L3 4 L0 0 L-3 4 Z" fill="currentColor" opacity="0.5"/>
+    <path d="M13 0 L4 3 L0 0 L4 -3 Z" fill="currentColor" opacity="0.5"/>
+    <path d="M-13 0 L-4 3 L0 0 L-4 -3 Z" fill="currentColor" opacity="0.5"/>
+    <circle cx="0" cy="0" r="2" fill="currentColor"/>
+  </g>
+  
+  <!-- Wordmark -->
+  <text x="55" y="32" font-family="'Inter', Arial, sans-serif" font-size="24" font-weight="800" fill="currentColor">Travelo</text>
+</svg>
