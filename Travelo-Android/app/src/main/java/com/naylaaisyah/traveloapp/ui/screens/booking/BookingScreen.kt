@@ -117,35 +117,66 @@ fun BookingScreen(
     datePickerDialog.datePicker.minDate = System.currentTimeMillis()
 
     // Activity result launcher for Midtrans payment
+    // FIX: always verify with backend regardless of WebView result code.
+    // Many Midtrans methods (VA/QRIS) never redirect to a success URL, so the
+    // user simply presses back -> previously CANCELLED did resetState() with no
+    // verification and the booking stayed pending forever.
     val paymentLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
         android.util.Log.d("BookingScreen", "Payment activity result: ${result.resultCode}")
-        
+
+        // createdBooking may have been preserved now, but fall back to the
+        // booking id captured at launch time (pendingBookingId).
+        val bookingId = uiState.createdBooking?.id
+            ?: pendingBookingId.takeIf { it > 0 }
+            ?: bookingIdToFetch.takeIf { it > 0 }
+            ?: 0
+
         when (result.resultCode) {
             PaymentWebViewActivity.RESULT_PAYMENT_SUCCESS,
             Activity.RESULT_OK -> {
                 // Payment completed or user returned from payment page
                 android.util.Log.d("BookingScreen", "Payment completed, will verify and sync...")
-                
+
                 // Verify and sync payment with Midtrans
-                uiState.createdBooking?.id?.let { bookingId ->
+                if (bookingId > 0) {
                     bookingIdToFetch = bookingId
+                    pendingBookingId = bookingId
                     shouldFetchUpdatedBooking = true
                 }
             }
             PaymentWebViewActivity.RESULT_PAYMENT_PENDING -> {
-                android.util.Log.d("BookingScreen", "Payment pending")
-                pendingBookingId = uiState.createdBooking?.id ?: 0
-                showPendingDialog = true
+                android.util.Log.d("BookingScreen", "Payment pending, verifying with server...")
+                if (bookingId > 0) {
+                    pendingBookingId = bookingId
+                    bookingIdToFetch = bookingId
+                    shouldFetchUpdatedBooking = true
+                } else {
+                    pendingBookingId = 0
+                    showPendingDialog = true
+                }
             }
-            PaymentWebViewActivity.RESULT_PAYMENT_CANCELLED -> {
-                android.util.Log.d("BookingScreen", "Payment cancelled")
-                viewModel.resetState()
+            PaymentWebViewActivity.RESULT_PAYMENT_CANCELLED,
+            Activity.RESULT_CANCELED -> {
+                android.util.Log.d("BookingScreen", "Payment cancelled/closed, verifying anyway...")
+                if (bookingId > 0) {
+                    bookingIdToFetch = bookingId
+                    pendingBookingId = bookingId
+                    shouldFetchUpdatedBooking = true
+                } else {
+                    viewModel.resetState()
+                }
             }
             else -> {
-                android.util.Log.d("BookingScreen", "Payment failed or unknown result")
-                viewModel.resetState()
+                android.util.Log.d("BookingScreen", "Payment unknown result, verifying anyway...")
+                if (bookingId > 0) {
+                    bookingIdToFetch = bookingId
+                    pendingBookingId = bookingId
+                    shouldFetchUpdatedBooking = true
+                } else {
+                    viewModel.resetState()
+                }
             }
         }
     }
@@ -180,9 +211,22 @@ fun BookingScreen(
                     android.util.Log.d("BookingScreen", "Final attempt: using retry endpoint...")
                     viewModel.retrySyncPaymentStatus(bookingIdToFetch)
                     delay(3000)
+                    if (viewModel.uiState.value.paymentSuccess) {
+                        android.util.Log.d("BookingScreen", "✓ Payment verified as PAID on retry!")
+                        verifySuccess = true
+                        break
+                    }
                 }
             }
-            
+
+            // FIX: if still not paid, show pending dialog so the user knows the
+            // booking is waiting (previously the screen just went silent and the
+            // booking looked stuck with no guidance).
+            if (!verifySuccess && pendingBookingId > 0) {
+                android.util.Log.d("BookingScreen", "Payment still pending after verification, showing pending dialog")
+                showPendingDialog = true
+            }
+
             shouldFetchUpdatedBooking = false
             bookingIdToFetch = 0
         }
@@ -192,20 +236,25 @@ fun BookingScreen(
     LaunchedEffect(uiState.snapToken) {
         val snapToken = uiState.snapToken
         val booking = uiState.createdBooking
-        
+
         if (snapToken != null && booking != null) {
             android.util.Log.d("BookingScreen", "Snap token received: $snapToken")
             android.util.Log.d("BookingScreen", "Launching payment for booking: ${booking.id}")
-            
+
+            // FIX: persist booking id BEFORE clearing state, otherwise the
+            // payment-result handler loses the id and never verifies.
+            pendingBookingId = booking.id
+            bookingIdToFetch = booking.id
+
             // Launch Midtrans payment WebView via activity result launcher
             val intent = android.content.Intent(context, PaymentWebViewActivity::class.java).apply {
                 putExtra(PaymentWebViewActivity.EXTRA_SNAP_TOKEN, snapToken)
                 putExtra(PaymentWebViewActivity.EXTRA_IS_SANDBOX, true)
             }
             paymentLauncher.launch(intent)
-            
-            // Reset snap token after launching
-            viewModel.resetState()
+
+            // Clear only the token; keep createdBooking so result handler can verify.
+            viewModel.consumeSnapToken()
         }
     }
 

@@ -167,13 +167,15 @@ class BookingViewModel @Inject constructor(
                 when (result) {
                     is Resource.Success<*> -> {
                         val paymentStatus = result.data as? com.naylaaisyah.traveloapp.data.models.PaymentSyncResponse
-                        android.util.Log.d("BookingViewModel", "Payment status: ${paymentStatus?.paymentStatus}")
-                        android.util.Log.d("BookingViewModel", "Booking status: ${paymentStatus?.bookingStatus}")
+                        val ps = paymentStatus?.effectivePaymentStatus ?: paymentStatus?.paymentStatus
+                        val bs = paymentStatus?.effectiveBookingStatus ?: paymentStatus?.bookingStatus
+                        android.util.Log.d("BookingViewModel", "Payment status: $ps")
+                        android.util.Log.d("BookingViewModel", "Booking status: $bs")
                         android.util.Log.d("BookingViewModel", "==============================")
-                        
+
                         // Check if payment was successful
-                        val isPaid = paymentStatus?.paymentStatus?.lowercase() == "paid" ||
-                                    paymentStatus?.bookingStatus?.lowercase() == "confirmed"
+                        val isPaid = ps?.lowercase() == "paid" ||
+                                    bs?.lowercase() == "confirmed"
                         
                         _uiState.value = _uiState.value.copy(
                             isLoading = false,
@@ -212,10 +214,12 @@ class BookingViewModel @Inject constructor(
                 when (result) {
                     is Resource.Success<*> -> {
                         val paymentStatus = result.data as? com.naylaaisyah.traveloapp.data.models.PaymentSyncResponse
-                        android.util.Log.d("BookingViewModel", "Retry succeeded! Status: ${paymentStatus?.paymentStatus}")
-                        
-                        val isPaid = paymentStatus?.paymentStatus?.lowercase() == "paid" ||
-                                    paymentStatus?.bookingStatus?.lowercase() == "confirmed"
+                        val ps = paymentStatus?.effectivePaymentStatus ?: paymentStatus?.paymentStatus
+                        val bs = paymentStatus?.effectiveBookingStatus ?: paymentStatus?.bookingStatus
+                        android.util.Log.d("BookingViewModel", "Retry succeeded! Status: $ps")
+
+                        val isPaid = ps?.lowercase() == "paid" ||
+                                    bs?.lowercase() == "confirmed"
                         
                         _uiState.value = _uiState.value.copy(
                             isLoading = false,
@@ -240,6 +244,15 @@ class BookingViewModel @Inject constructor(
 
     fun resetState() {
         _uiState.value = BookingUiState()
+    }
+
+    /**
+     * Clear only the snap token after launching payment WebView.
+     * FIX: previous code called resetState() here which wiped createdBooking,
+     * so the payment-result handler could no longer know which booking to verify.
+     */
+    fun consumeSnapToken() {
+        _uiState.value = _uiState.value.copy(snapToken = null, isLoading = false)
     }
 }
 

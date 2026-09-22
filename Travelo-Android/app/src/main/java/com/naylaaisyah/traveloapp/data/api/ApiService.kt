@@ -83,7 +83,7 @@ interface ApiService {
     suspend fun getPaymentStatus(
         @Header("Authorization") token: String,
         @Path("bookingId") bookingId: Int
-    ): ApiResponse<Payment>
+    ): ApiResponse<PaymentStatusData>
 
     @POST("api/bookings/{bookingId}/payment/verify-and-sync")
     suspend fun verifyAndSyncPayment(

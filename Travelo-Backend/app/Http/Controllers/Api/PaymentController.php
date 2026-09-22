@@ -119,13 +119,13 @@ class PaymentController extends Controller
                 ]);
             }
 
-            $orderId = $payment->midtrans_order_id;
-
-            // Try to verify with Midtrans with timeout
+            // Check ALL order_ids ever issued for this booking (current + history).
+            // Fixes "paid on older Snap URL but verify only checks the latest".
             try {
-                Log::info('Checking Midtrans for order', ['order_id' => $orderId]);
-                
-                $transactionData = $this->midtransService->verifyPayment($orderId);
+                $candidates = $this->midtransService->getOrderCandidates($booking);
+                Log::info('Checking Midtrans for orders', ['booking_id' => $booking->id, 'orders' => $candidates]);
+
+                $transactionData = $this->midtransService->verifyBookingAcrossOrders($booking);
 
                 if ($transactionData && !empty($transactionData['raw'])) {
                     Log::info('Got Midtrans response', [
@@ -172,7 +172,7 @@ class PaymentController extends Controller
             } catch (\Exception $e) {
                 Log::warning('Midtrans verification timeout/failed', [
                     'booking_id' => $booking->id,
-                    'order_id' => $orderId,
+                    'order_id' => $payment->midtrans_order_id,
                     'error' => $e->getMessage(),
                 ]);
                 
@@ -229,9 +229,7 @@ class PaymentController extends Controller
 
             for ($i = 0; $i < $attempts; $i++) {
                 try {
-                    $orderId = $payment->midtrans_order_id ?? 'BOOKING-' . $booking->id;
-                    
-                    $transactionData = $this->midtransService->verifyPayment($orderId);
+                    $transactionData = $this->midtransService->verifyBookingAcrossOrders($booking);
                     
                     if ($transactionData && !empty($transactionData['raw'])) {
                         DB::beginTransaction();

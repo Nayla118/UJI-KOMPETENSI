@@ -14,6 +14,7 @@ class Payment extends Model
         'booking_id',
         'midtrans_transaction_id',
         'midtrans_order_id',
+        'order_history',
         'payment_status',
         'payment_method',
         'amount',
@@ -23,6 +24,7 @@ class Payment extends Model
     protected $casts = [
         'amount' => 'decimal:2',
         'paid_at' => 'datetime',
+        'order_history' => 'array',
     ];
 
     public function booking(): BelongsTo

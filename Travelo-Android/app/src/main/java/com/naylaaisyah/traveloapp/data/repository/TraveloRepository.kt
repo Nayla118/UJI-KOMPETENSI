@@ -230,7 +230,34 @@ class TraveloRepository @Inject constructor(
         }
     }
 
-    fun retrySyncPayment(bookingId: Int, token: String): Flow<Resource<PaymentSyncResponse>> = verifyAndSyncPayment(bookingId, token)
+    // FIX: previously aliased to verifyAndSync, so the retry-sync endpoint was
+    // never actually called. Call the dedicated endpoint now.
+    fun retrySyncPayment(bookingId: Int, token: String): Flow<Resource<PaymentSyncResponse>> = flow {
+        emit(Resource.Loading<PaymentSyncResponse>())
+        try {
+            val response = apiService.retrySyncPayment("Bearer $token", bookingId)
+            if (response.success && response.data != null) {
+                emit(Resource.Success(response.data))
+            } else {
+                emit(Resource.Error(Exception(response.message), response.message))
+            }
+        } catch (e: Exception) {
+            emit(Resource.Error(e, e.message ?: "Payment retry failed"))
+        }
+    }
+
+    suspend fun getPaymentStatus(token: String, bookingId: Int): Resource<PaymentStatusData> {
+        return try {
+            val response = apiService.getPaymentStatus("Bearer $token", bookingId)
+            if (response.success && response.data != null) {
+                Resource.Success(response.data)
+            } else {
+                Resource.Error(Exception(response.message), response.message)
+            }
+        } catch (e: Exception) {
+            Resource.Error(e, e.message ?: "Failed to get payment status")
+        }
+    }
 
     // User
     suspend fun getUserProfile(token: String): Resource<User> {

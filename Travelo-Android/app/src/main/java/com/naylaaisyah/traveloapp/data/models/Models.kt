@@ -179,7 +179,49 @@ data class PaymentSyncResponse(
     val paymentStatus: String? = null,
     @SerializedName("booking_status")
     val bookingStatus: String? = null,
-    val booking: Booking? = null
+    val booking: Booking? = null,
+    @SerializedName("booking_id")
+    val bookingId: Int? = null,
+    val status: String? = null,
+    @SerializedName("bookingStatus")
+    val bookingStatusAlt: String? = null
+) {
+    val effectivePaymentStatus: String?
+        get() = paymentStatus ?: status
+    val effectiveBookingStatus: String?
+        get() = bookingStatus ?: bookingStatusAlt
+}
+
+data class PaymentStatusInfo(
+    val id: Int? = null,
+    val status: String? = null,
+    val method: String? = null,
+    @SerializedName("payment_method")
+    val paymentMethodAlt: String? = null,
+    val amount: Double? = null,
+    @SerializedName("midtrans_transaction_id")
+    val transactionId: String? = null,
+    @SerializedName("midtrans_order_id")
+    val orderId: String? = null,
+    @SerializedName("paid_at")
+    val paidAt: String? = null,
+    @SerializedName("updated_at")
+    val updatedAt: String? = null
+)
+
+data class PaymentStatusData(
+    @SerializedName("booking_id")
+    val bookingId: Int? = null,
+    @SerializedName("booking_status")
+    val bookingStatus: String? = null,
+    @SerializedName("payment_status")
+    val paymentStatus: String? = null,
+    @SerializedName("total_price")
+    val totalPrice: Double? = null,
+    @SerializedName("bookingStatus")
+    val bookingStatusAlt: String? = null,
+    val status: String? = null,
+    val payment: PaymentStatusInfo? = null
 )
 
 // Payment Models

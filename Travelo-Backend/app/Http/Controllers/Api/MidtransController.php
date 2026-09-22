@@ -154,22 +154,13 @@ class MidtransController extends Controller
             ->with('payment')
             ->findOrFail($bookingId);
 
-        // Get the actual order ID from the payment record if it exists
-        $payment = $booking->payment;
-        if ($payment && $payment->midtrans_order_id) {
-            $orderId = $payment->midtrans_order_id;
-        } else {
-            // Fallback: try to find the most recent order ID from Midtrans
-            $orderId = 'BOOKING-' . $booking->id;
-        }
-
         try {
-            $midtransStatus = $this->midtransService->verifyPayment($orderId);
+            $midtransStatus = $this->midtransService->verifyBookingAcrossOrders($booking);
             $syncResult = $this->midtransService->syncBookingPaymentStatus($booking, $midtransStatus['raw'] ?? $midtransStatus);
 
             Log::info('Manual sync completed', [
                 'booking_id' => $booking->id,
-                'order_id' => $orderId,
+                'order_id' => $midtransStatus['raw']['order_id'] ?? null,
                 'new_status' => $syncResult['payment_status'],
             ]);
 
@@ -181,7 +172,6 @@ class MidtransController extends Controller
         } catch (\Exception $e) {
             Log::error('Failed to sync booking payment status', [
                 'booking_id' => $booking->id,
-                'order_id' => $orderId,
                 'error' => $e->getMessage(),
             ]);
 

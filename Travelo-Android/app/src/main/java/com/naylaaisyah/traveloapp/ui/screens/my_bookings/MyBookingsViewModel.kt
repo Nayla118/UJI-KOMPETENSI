@@ -97,9 +97,12 @@ class MyBookingsViewModel @Inject constructor(
         val bookingId = currentPayingBookingId
         android.util.Log.d("MyBookingsVM", "onPaymentSuccess bookingId=$bookingId")
 
+        // FIX: do NOT show success dialog optimistically. The WebView success
+        // signal only means the Snap page redirected; the backend may still say
+        // pending (webhook delay / different order_id). Verify first.
         _uiState.value = _uiState.value.copy(
-            showPaymentSuccessDialog = true,
-            paymentMessage = "Payment successful! Verifying..."
+            showPaymentSuccessDialog = false,
+            paymentMessage = "Payment received, verifying with server..."
         )
 
         if (bookingId != null) {
@@ -157,6 +160,9 @@ class MyBookingsViewModel @Inject constructor(
     /**
      * Panggil backend untuk verifikasi status ke Midtrans,
      * lalu reload bookings. Retry max 3x kalau gagal.
+     * FIX: only show the success dialog AFTER backend confirms paid/confirmed.
+     * Previously the dialog was shown optimistically, then the list still said
+     * pending -> user confusion.
      */
     private fun verifyAndRefresh(bookingId: Int) {
         val token = sessionManager.authToken ?: run {
@@ -169,7 +175,8 @@ class MyBookingsViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(paymentMessage = "Verifying payment...")
 
         viewModelScope.launch {
-            var confirmed = false
+            var confirmedPaid = false
+            var terminalStatus: String? = null
 
             for (attempt in 1..3) {
                 android.util.Log.d("MyBookingsVM", "Verify attempt $attempt/3 for booking $bookingId")
@@ -179,11 +186,14 @@ class MyBookingsViewModel @Inject constructor(
                     repository.verifyAndSyncPayment(bookingId, token).collect { result ->
                         when (result) {
                             is Resource.Success -> {
-                                val ps = result.data?.paymentStatus
-                                val bs = result.data?.bookingStatus
+                                val ps = result.data?.effectivePaymentStatus ?: result.data?.paymentStatus
+                                val bs = result.data?.effectiveBookingStatus ?: result.data?.bookingStatus
                                 android.util.Log.d("MyBookingsVM", "Attempt $attempt: paymentStatus=$ps bookingStatus=$bs")
-                                if (ps == "paid" || bs == "confirmed" || ps == "failed" || ps == "expired") {
-                                    confirmed = true
+                                if (ps == "paid" || bs == "confirmed") {
+                                    confirmedPaid = true
+                                    terminalStatus = "paid"
+                                } else if (ps == "failed" || ps == "expired") {
+                                    terminalStatus = ps
                                 }
                             }
                             is Resource.Error -> {
@@ -196,12 +206,28 @@ class MyBookingsViewModel @Inject constructor(
                     android.util.Log.e("MyBookingsVM", "Attempt $attempt exception: ${e.message}")
                 }
 
-                if (confirmed) break
+                if (confirmedPaid || terminalStatus == "failed" || terminalStatus == "expired") break
             }
 
             delay(500L)
             currentPayingBookingId = null
-            _uiState.value = _uiState.value.copy(payingBookingId = null)
+            if (confirmedPaid) {
+                _uiState.value = _uiState.value.copy(
+                    payingBookingId = null,
+                    showPaymentSuccessDialog = true,
+                    paymentMessage = "Payment successful!"
+                )
+            } else if (terminalStatus == "failed" || terminalStatus == "expired") {
+                _uiState.value = _uiState.value.copy(
+                    payingBookingId = null,
+                    paymentMessage = "Payment $terminalStatus. Please try again."
+                )
+            } else {
+                _uiState.value = _uiState.value.copy(
+                    payingBookingId = null,
+                    paymentMessage = "Payment is still pending. Please complete payment or check again shortly."
+                )
+            }
             loadBookings()
         }
     }
