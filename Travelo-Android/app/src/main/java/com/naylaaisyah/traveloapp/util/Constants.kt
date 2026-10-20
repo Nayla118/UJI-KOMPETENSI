@@ -1,10 +1,12 @@
 package com.naylaaisyah.traveloapp.util
 
+import com.naylaaisyah.traveloapp.BuildConfig
+
 object Constants {
-    // API Configuration
-    const val BASE_URL_EMULATOR = "http://10.0.2.2:8000/"
-    const val BASE_URL_NGROK = "https://postcartilaginous-erlinda-unchicly.ngrok-free.dev/"
-    const val BASE_URL = BASE_URL_NGROK
+    // Resolved at build time (see app/build.gradle.kts). Debug defaults to the
+    // emulator host; override per machine with `travelo.baseUrl` in
+    // local.properties or -Ptravelo.baseUrl=... without editing source.
+    val BASE_URL: String = BuildConfig.BASE_URL
     
     // Firebase Configuration
     const val FIREBASE_PROJECT_ID = "travelo-818bc"
@@ -16,9 +18,9 @@ object Constants {
     const val PREF_USER_ID = "user_id"
     const val PREF_USER_EMAIL = "user_email"
     
-    // Payment
-    const val MIDTRANS_SERVER_KEY = "SB-Mid-server-key"  // Replace with actual key
-    const val MIDTRANS_CLIENT_KEY = "SB-Mid-client-key"  // Replace with actual key
+    // Payment (Snap flow uses a server-issued snap_token opened in WebView;
+    // no Midtrans keys belong in the app. The server key must ONLY live in
+    // backend .env as MIDTRANS_SERVER_KEY.)
     const val MIDTRANS_IS_SANDBOX = true
     
     // Network

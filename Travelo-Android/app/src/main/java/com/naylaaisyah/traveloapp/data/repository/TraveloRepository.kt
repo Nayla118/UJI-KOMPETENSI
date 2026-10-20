@@ -3,26 +3,37 @@ package com.naylaaisyah.traveloapp.data.repository
 import com.naylaaisyah.traveloapp.data.api.ApiService
 import com.naylaaisyah.traveloapp.data.models.*
 import com.naylaaisyah.traveloapp.util.Resource
+import com.naylaaisyah.traveloapp.util.SessionManager
+import com.google.gson.JsonSyntaxException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import org.json.JSONObject
+import retrofit2.HttpException
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class TraveloRepository @Inject constructor(
-    private val apiService: ApiService
+    private val apiService: ApiService,
+    private val sessionManager: SessionManager
 ) {
     // Authentication
     suspend fun login(idToken: String): Resource<AuthResponse> {
         return try {
             val response = apiService.login(FirebaseLoginRequest(idToken))
-            if (response.success && response.data != null) {
-                Resource.Success(response.data)
+            val data = response.data
+            if (response.success && data != null) {
+                Resource.Success(data)
             } else {
-                Resource.Error(Exception(response.message))
+                val message = response.message.ifBlank { "Login failed" }
+                Resource.Error(Exception(message), message)
             }
+        } catch (e: HttpException) {
+            val message = serverMessage(e) ?: "Sign-in failed (${e.code()})."
+            Resource.Error(e, message)
         } catch (e: Exception) {
-            Resource.Error(e, e.message ?: "Login failed")
+            val message = readableError(e, "Login failed")
+            Resource.Error(e, message)
         }
     }
 
@@ -36,7 +47,7 @@ class TraveloRepository @Inject constructor(
                 emit(Resource.Error(Exception(response.data?.message ?: "Login failed")))
             }
         } catch (e: Exception) {
-            emit(Resource.Error(e, e.message ?: "Firebase login failed"))
+            emit(Resource.Error(e, readableError(e, "Firebase login failed")))
         }
     }
 
@@ -56,7 +67,109 @@ class TraveloRepository @Inject constructor(
                 Resource.Error(Exception(response.message))
             }
         } catch (e: Exception) {
-            Resource.Error(e, e.message ?: "Registration failed")
+            Resource.Error(e, readableError(e, "Registration failed"))
+        }
+    }
+
+    // Email OTP verification (login step 2)
+    suspend fun sendOtp(idToken: String): Resource<OtpSendResponse> =
+        otpCall(fallback = "Couldn't send the verification code. Please try again.") {
+            apiService.sendOtp(FirebaseLoginRequest(idToken))
+        }
+
+    suspend fun resendOtp(idToken: String): Resource<OtpSendResponse> =
+        otpCall(fallback = "Couldn't resend the code. Please try again.") {
+            apiService.resendOtp(FirebaseLoginRequest(idToken))
+        }
+
+    /**
+     * Verifies the 6-digit code. Only a correct, unexpired, single-use code
+     * makes the backend return the session token.
+     */
+    suspend fun verifyOtp(idToken: String, code: String): Resource<Pair<User, String>> {
+        return try {
+            val response = apiService.verifyOtp(OtpVerifyRequest(idToken, code))
+            val data = response.data
+            val user = data?.user
+            val token = data?.token
+            if (response.success && user != null && token != null) {
+                Resource.Success(user to token)
+            } else {
+                val message = response.message.ifBlank { "That code is incorrect or has expired." }
+                Resource.Error(Exception(message), message)
+            }
+        } catch (e: HttpException) {
+            val message = serverMessage(e) ?: "That code is incorrect or has expired."
+            Resource.Error(e, message)
+        } catch (e: Exception) {
+            val message = readableError(e, "Couldn't reach the server.")
+            Resource.Error(e, message)
+        }
+    }
+
+    private suspend fun <T> otpCall(
+        fallback: String,
+        call: suspend () -> ApiResponse<T>
+    ): Resource<T> {
+        return try {
+            val response = call()
+            val data = response.data
+            if (response.success && data != null) {
+                Resource.Success(data)
+            } else {
+                val message = response.message.ifBlank { fallback }
+                Resource.Error(Exception(message), message)
+            }
+        } catch (e: HttpException) {
+            val message = serverMessage(e) ?: fallback
+            Resource.Error(e, message)
+        } catch (e: Exception) {
+            val message = readableError(e, fallback)
+            Resource.Error(e, message)
+        }
+    }
+
+    /** Reads the Laravel `{"message": "..."}` payload from a non-2xx response. */
+    private fun serverMessage(e: HttpException): String? {
+        val body = try {
+            e.response()?.errorBody()?.string()
+        } catch (_: Exception) {
+            null
+        }
+
+        if (body.isNullOrBlank()) return null
+
+        return try {
+            JSONObject(body).optString("message").takeIf { it.isNotBlank() }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /**
+     * Turns transport exceptions into copy a person can act on. Raw OkHttp
+     * text ("failed to connect to /10.0.2.2 (port 8000) ...") must never reach
+     * the UI; the original exception is still logged by the caller's stack.
+     */
+    private fun readableError(e: Throwable, fallback: String): String {
+        if (e is HttpException && e.code() == 401) {
+            // Clear the stale Sanctum token and let MainActivity return to
+            // LoginActivity. The message is still returned for the local UI.
+            sessionManager.expireSession()
+        }
+
+        return when (e) {
+            is HttpException -> when (e.code()) {
+                401 -> "Your session has expired. Please sign in again."
+                403 -> "You don't have access to this booking."
+                else -> serverMessage(e) ?: fallback
+            }
+            is JsonSyntaxException -> "We couldn't read the server response. Please try again."
+            is java.net.SocketTimeoutException -> "The connection timed out. Please try again."
+            is java.net.UnknownHostException -> "Can't reach Travelo. Check your internet connection."
+            is java.net.ConnectException -> "Can't reach Travelo. Check your internet connection."
+            is java.io.IOException -> "Network problem. Check your connection and try again."
+            else -> e.message?.takeIf { it.isNotBlank() } ?: fallback
         }
     }
 
@@ -70,7 +183,7 @@ class TraveloRepository @Inject constructor(
                 Resource.Error(Exception(response.message))
             }
         } catch (e: Exception) {
-            Resource.Error(e, e.message ?: "Failed to get destinations")
+            Resource.Error(e, readableError(e, "Failed to get destinations"))
         }
     }
 
@@ -83,7 +196,7 @@ class TraveloRepository @Inject constructor(
                 Resource.Error(Exception(response.message))
             }
         } catch (e: Exception) {
-            Resource.Error(e, e.message ?: "Failed to get destination detail")
+            Resource.Error(e, readableError(e, "Failed to get destination detail"))
         }
     }
 
@@ -97,7 +210,7 @@ class TraveloRepository @Inject constructor(
                 Resource.Error(Exception(response.message))
             }
         } catch (e: Exception) {
-            Resource.Error(e, e.message ?: "Failed to get tour packages")
+            Resource.Error(e, readableError(e, "Failed to get tour packages"))
         }
     }
 
@@ -110,7 +223,7 @@ class TraveloRepository @Inject constructor(
                 Resource.Error(Exception(response.message))
             }
         } catch (e: Exception) {
-            Resource.Error(e, e.message ?: "Failed to get tour packages")
+            Resource.Error(e, readableError(e, "Failed to get tour packages"))
         }
     }
 
@@ -123,7 +236,7 @@ class TraveloRepository @Inject constructor(
                 Resource.Error(Exception(response.message))
             }
         } catch (e: Exception) {
-            Resource.Error(e, e.message ?: "Failed to get tour package detail")
+            Resource.Error(e, readableError(e, "Failed to get tour package detail"))
         }
     }
 
@@ -137,7 +250,7 @@ class TraveloRepository @Inject constructor(
                 Resource.Error(Exception(response.message))
             }
         } catch (e: Exception) {
-            Resource.Error(e, e.message ?: "Failed to get bookings")
+            Resource.Error(e, readableError(e, "Failed to get bookings"))
         }
     }
 
@@ -158,7 +271,7 @@ class TraveloRepository @Inject constructor(
                 Resource.Error(Exception(response.message))
             }
         } catch (e: Exception) {
-            Resource.Error(e, e.message ?: "Failed to create booking")
+            Resource.Error(e, readableError(e, "Failed to create booking"))
         }
     }
 
@@ -199,7 +312,7 @@ class TraveloRepository @Inject constructor(
                 emit(Resource.Error(Exception(response.message), response.message))
             }
         } catch (e: Exception) {
-            emit(Resource.Error(e, e.message ?: "Failed to get booking"))
+            emit(Resource.Error(e, readableError(e, "Failed to get booking")))
         }
     }
 
@@ -212,37 +325,7 @@ class TraveloRepository @Inject constructor(
                 Resource.Error(Exception(response.message))
             }
         } catch (e: Exception) {
-            Resource.Error(e, e.message ?: "Failed to create snap token")
-        }
-    }
-
-    fun verifyAndSyncPayment(bookingId: Int, token: String): Flow<Resource<PaymentSyncResponse>> = flow {
-        emit(Resource.Loading<PaymentSyncResponse>())
-        try {
-            val response = apiService.verifyAndSyncPayment("Bearer $token", bookingId)
-            if (response.success && response.data != null) {
-                emit(Resource.Success(response.data))
-            } else {
-                emit(Resource.Error(Exception(response.message), response.message))
-            }
-        } catch (e: Exception) {
-            emit(Resource.Error(e, e.message ?: "Payment verification failed"))
-        }
-    }
-
-    // FIX: previously aliased to verifyAndSync, so the retry-sync endpoint was
-    // never actually called. Call the dedicated endpoint now.
-    fun retrySyncPayment(bookingId: Int, token: String): Flow<Resource<PaymentSyncResponse>> = flow {
-        emit(Resource.Loading<PaymentSyncResponse>())
-        try {
-            val response = apiService.retrySyncPayment("Bearer $token", bookingId)
-            if (response.success && response.data != null) {
-                emit(Resource.Success(response.data))
-            } else {
-                emit(Resource.Error(Exception(response.message), response.message))
-            }
-        } catch (e: Exception) {
-            emit(Resource.Error(e, e.message ?: "Payment retry failed"))
+            Resource.Error(e, readableError(e, "Failed to create snap token"))
         }
     }
 
@@ -255,7 +338,58 @@ class TraveloRepository @Inject constructor(
                 Resource.Error(Exception(response.message), response.message)
             }
         } catch (e: Exception) {
-            Resource.Error(e, e.message ?: "Failed to get payment status")
+            Resource.Error(e, readableError(e, "Failed to get payment status"))
+        }
+    }
+
+    /**
+     * Single-shot Midtrans reconciliation: asks the backend to verify this
+     * booking against Midtrans (Status API across all order_ids) and sync
+     * the local DB. Returns the backend-confirmed statuses, or an error.
+     * Callers must bound retries themselves — never loop forever.
+     */
+    suspend fun verifyAndSyncOnce(token: String, bookingId: Int): Resource<PaymentSyncResponse> {
+        return try {
+            val response = apiService.verifyAndSyncPayment("Bearer $token", bookingId)
+            if (response.success && response.data != null) {
+                Resource.Success(response.data)
+            } else {
+                Resource.Error(Exception(response.message), response.message)
+            }
+        } catch (e: Exception) {
+            Resource.Error(e, readableError(e, "Payment verification failed"))
+        }
+    }
+
+    suspend fun getBookingOnce(token: String, bookingId: Int): Resource<Booking> {
+        return try {
+            val response = apiService.getBookingDetail("Bearer $token", bookingId)
+            if (response.success && response.data != null) {
+                Resource.Success(response.data)
+            } else {
+                Resource.Error(Exception(response.message), response.message)
+            }
+        } catch (e: Exception) {
+            Resource.Error(e, readableError(e, "Failed to get booking"))
+        }
+    }
+
+    /**
+     * Fetch the backend-verified e-ticket. A 409 means the booking is not paid
+     * and confirmed yet, so the UI must show that message instead of a QR.
+     */
+    suspend fun getETicket(token: String, bookingId: Int): Resource<ETicket> {
+        return try {
+            val response = apiService.getETicket("Bearer $token", bookingId)
+            if (response.success && response.data != null) {
+                Resource.Success(response.data)
+            } else {
+                Resource.Error(Exception(response.message), response.message.ifBlank {
+                    "E-ticket is not available for this booking."
+                })
+            }
+        } catch (e: Exception) {
+            Resource.Error(e, readableError(e, "Couldn't load your e-ticket."))
         }
     }
 
@@ -269,7 +403,7 @@ class TraveloRepository @Inject constructor(
                 Resource.Error(Exception(response.message))
             }
         } catch (e: Exception) {
-            Resource.Error(e, e.message ?: "Failed to get user profile")
+            Resource.Error(e, readableError(e, "Failed to get user profile"))
         }
     }
 }

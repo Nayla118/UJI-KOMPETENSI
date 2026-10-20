@@ -1,10 +1,10 @@
 @extends('layouts.admin')
 
-@section('title', 'Create Tour Package - TravelAdmin')
+@section('title', 'Create Tour Package - Travelo Admin')
 
 <!-- Header -->
 @section('content')
-<header class="h-16 border-b border-slate-200 bg-white/80 backdrop-blur flex items-center justify-between px-8 sticky top-0 z-10">
+<header class="h-16 border-b border-slate-200 bg-white flex items-center justify-between px-8 sticky top-0 z-10">
     <h2 class="text-xl font-semibold">Create New Package</h2>
     <div class="flex items-center gap-4">
         <a href="{{ route('admin.tour-packages.index') }}" class="p-2 text-slate-500 hover:bg-slate-100 rounded-full">
@@ -45,10 +45,10 @@
                             </select>
                         </div>
                         <div class="flex flex-col gap-2">
-                            <label class="text-sm font-medium text-slate-700">Price per Person ($)</label>
+                            <label class="text-sm font-medium text-slate-700">Price per Person (Rp)</label>
                             <div class="relative">
-                                <span class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">$</span>
-                                <input name="price" value="{{ old('price') }}" class="w-full pl-8 pr-4 py-3 rounded-lg border-slate-200 focus:ring-primary focus:border-primary" placeholder="0.00" type="number" step="0.01" required/>
+                                <span class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">Rp</span>
+                                <input name="price" value="{{ old('price') }}" class="w-full pl-12 pr-4 py-3 rounded-lg border-slate-200 focus:ring-primary focus:border-primary" placeholder="0" type="number" step="1" required/>
                             </div>
                         </div>
                     </div>
@@ -116,7 +116,7 @@
                         <span id="preview-destination">Destination Name</span>
                     </div>
                     <div class="mt-4 pt-4 border-t border-slate-100 flex justify-between items-center">
-                        <p id="preview-price" class="text-lg font-bold text-primary">$0</p>
+                        <p id="preview-price" class="text-lg font-bold text-primary">Rp 0</p>
                         <p id="preview-duration" class="text-xs text-slate-500">7 Days</p>
                     </div>
                 </div>
@@ -156,7 +156,7 @@
     });
 
     document.querySelector('input[name="price"]').addEventListener('input', function(e) {
-        document.getElementById('preview-price').textContent = '$' + parseFloat(e.target.value || 0).toFixed(2);
+        document.getElementById('preview-price').textContent = 'Rp ' + new Intl.NumberFormat('id-ID').format(parseFloat(e.target.value || 0));
     });
 
     document.querySelector('input[name="duration_days"]').addEventListener('input', function(e) {

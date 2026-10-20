@@ -3,6 +3,7 @@ package com.naylaaisyah.traveloapp.ui.screens.explore
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.naylaaisyah.traveloapp.data.models.Destination
+import com.naylaaisyah.traveloapp.data.models.TourPackage
 import com.naylaaisyah.traveloapp.data.models.safeCity
 import com.naylaaisyah.traveloapp.data.models.safeCountry
 import com.naylaaisyah.traveloapp.data.models.safeDescription
@@ -10,115 +11,100 @@ import com.naylaaisyah.traveloapp.data.models.safeName
 import com.naylaaisyah.traveloapp.data.models.safePrice
 import com.naylaaisyah.traveloapp.data.models.safeRating
 import com.naylaaisyah.traveloapp.data.models.safeTitle
-import com.naylaaisyah.traveloapp.data.models.TourPackage
 import com.naylaaisyah.traveloapp.data.repository.TraveloRepository
 import com.naylaaisyah.traveloapp.util.Resource
-import com.naylaaisyah.traveloapp.util.SessionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-// Sort options
+/**
+ * Sort options backed by fields the API actually returns.
+ *
+ * Destinations have no price, so the two price options only reorder tour
+ * packages; destinations keep the order the backend sent.
+ */
 enum class SortOption {
-    PRICE_LOW_HIGH,
-    PRICE_HIGH_LOW,
+    RECOMMENDED,
+    RATING,
     NEWEST,
-    RATING
+    PRICE_LOW_HIGH,
+    PRICE_HIGH_LOW
 }
 
-// View mode
-enum class ViewMode {
-    GRID,
-    LIST
-}
-
-// Filter data class
 data class ExploreFilters(
-    val category: String? = null,
     val minPrice: Double? = null,
     val maxPrice: Double? = null,
-    val minRating: Float? = null,
-    val sortBy: SortOption = SortOption.RATING
-)
+    val minRating: Double? = null,
+    val sortBy: SortOption = SortOption.RECOMMENDED
+) {
+    val activeCount: Int
+        get() = listOf(minPrice, maxPrice, minRating).count { it != null } +
+            if (sortBy != SortOption.RECOMMENDED) 1 else 0
+
+    val isActive: Boolean get() = activeCount > 0
+}
 
 data class ExploreUiState(
     val isLoading: Boolean = false,
     val isRefreshing: Boolean = false,
-    val isLoadingMore: Boolean = false,
     val destinations: List<Destination> = emptyList(),
     val filteredDestinations: List<Destination> = emptyList(),
     val tourPackages: List<TourPackage> = emptyList(),
     val filteredTourPackages: List<TourPackage> = emptyList(),
+    val destinationMatchCount: Int = 0,
+    val tourMatchCount: Int = 0,
     val searchQuery: String = "",
-    val selectedCategory: String? = null,
     val filters: ExploreFilters = ExploreFilters(),
-    val viewMode: ViewMode = ViewMode.GRID,
     val error: String? = null,
-    val userName: String = "",
-    val userPhoto: String? = null,
-    val favoriteDestinationIds: Set<Int> = emptySet(),
-    val favoriteTourIds: Set<Int> = emptySet(),
     val currentPage: Int = 1,
-    val hasMorePages: Boolean = true,
-    val isSearchActive: Boolean = false,
-    val searchResults: List<Destination> = emptyList(),
-    val searchTourResults: List<TourPackage> = emptyList()
-)
+    val hasMorePages: Boolean = false
+) {
+    /** True once at least one list has ever loaded, even if filters hide it. */
+    val hasContent: Boolean
+        get() = destinations.isNotEmpty() || tourPackages.isNotEmpty()
+
+    val matchCount: Int
+        get() = destinationMatchCount + tourMatchCount
+}
 
 @HiltViewModel
 class ExploreViewModel @Inject constructor(
-    private val repository: TraveloRepository,
-    private val sessionManager: SessionManager
+    private val repository: TraveloRepository
 ) : ViewModel() {
-    
+
     private val _uiState = MutableStateFlow(ExploreUiState())
     val uiState: StateFlow<ExploreUiState> = _uiState.asStateFlow()
-    
-    // Pagination
+
     private val pageSize = 10
     private var allDestinations: List<Destination> = emptyList()
     private var allTourPackages: List<TourPackage> = emptyList()
-    
+
+    // The full, filtered destination list. Pagination slices this list instead
+    // of the unfiltered source, so "load more" can never append a destination
+    // that does not match the current search/filters.
+    private var filteredDestinationPool: List<Destination> = emptyList()
+
     init {
         loadData()
-        loadUserInfo()
-        loadFavorites()
     }
-    
-    private fun loadUserInfo() {
-        val name = sessionManager.userName.orEmpty()
-        val photo = sessionManager.userPhoto
-        _uiState.value = _uiState.value.copy(
-            userName = name,
-            userPhoto = photo
-        )
-    }
-    
-    private fun loadFavorites() {
-        // Load favorites from local storage or API
-        // For now, using empty set - would integrate with local database
-    }
-    
+
     fun loadData() {
+        _uiState.value = _uiState.value.copy(isLoading = true, error = null)
         loadDestinations()
         loadTourPackages()
     }
-    
+
     fun refresh() {
-        _uiState.value = _uiState.value.copy(
-            isRefreshing = true,
-            currentPage = 1,
-            hasMorePages = true
-        )
+        _uiState.value = _uiState.value.copy(isRefreshing = true, error = null)
         loadDestinations()
         loadTourPackages()
     }
-    
+
     private fun loadDestinations() {
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true)
-
             when (val result = repository.getDestinations()) {
                 is Resource.Success -> {
                     allDestinations = result.data.orEmpty()
@@ -130,6 +116,7 @@ class ExploreViewModel @Inject constructor(
                     )
                     applyFiltersAndSort()
                 }
+
                 is Resource.Error -> {
                     _uiState.value = _uiState.value.copy(
                         isLoading = false,
@@ -137,6 +124,7 @@ class ExploreViewModel @Inject constructor(
                         error = result.message
                     )
                 }
+
                 is Resource.Loading -> Unit
             }
         }
@@ -153,232 +141,130 @@ class ExploreViewModel @Inject constructor(
                     )
                     applyFiltersAndSort()
                 }
+
                 is Resource.Error -> {
                     _uiState.value = _uiState.value.copy(
                         isRefreshing = false,
                         error = result.message
                     )
                 }
+
                 is Resource.Loading -> Unit
             }
         }
     }
-    
+
     fun loadMoreContent() {
-        if (_uiState.value.isLoadingMore || !_uiState.value.hasMorePages) return
-        
-        _uiState.value = _uiState.value.copy(isLoadingMore = true)
-        
-        // Simulate pagination - in real app would call API with page parameter
-        val currentPage = _uiState.value.currentPage + 1
-        val startIndex = (currentPage - 1) * pageSize
-        
-        if (startIndex >= allDestinations.size) {
-            _uiState.value = _uiState.value.copy(
-                isLoadingMore = false,
-                hasMorePages = false
-            )
+        val state = _uiState.value
+        if (!state.hasMorePages) return
+
+        val nextPage = state.currentPage + 1
+        val startIndex = (nextPage - 1) * pageSize
+        val endIndex = minOf(startIndex + pageSize, filteredDestinationPool.size)
+        if (startIndex >= filteredDestinationPool.size) {
+            _uiState.value = state.copy(hasMorePages = false)
             return
         }
-        
-        val endIndex = minOf(startIndex + pageSize, allDestinations.size)
-        val newDestinations = allDestinations.subList(startIndex, endIndex)
-        
-        _uiState.value = _uiState.value.copy(
-            isLoadingMore = false,
-            currentPage = currentPage,
-            hasMorePages = endIndex < allDestinations.size,
-            filteredDestinations = _uiState.value.filteredDestinations + newDestinations
+
+        _uiState.value = state.copy(
+            filteredDestinations = state.filteredDestinations +
+                filteredDestinationPool.subList(startIndex, endIndex),
+            currentPage = nextPage,
+            hasMorePages = endIndex < filteredDestinationPool.size
         )
     }
-    
-    // Search functionality
+
     fun updateSearchQuery(query: String) {
-        _uiState.value = _uiState.value.copy(
-            searchQuery = query,
-            isSearchActive = query.isNotBlank()
-        )
-        
-        if (query.isBlank()) {
-            _uiState.value = _uiState.value.copy(
-                searchResults = emptyList(),
-                searchTourResults = emptyList()
-            )
-            return
-        }
-        
-        // Filter destinations by search query
-        val filteredDestinations = allDestinations.filter { destination ->
-            destination.safeName.contains(query, ignoreCase = true) ||
-            destination.safeCity.contains(query, ignoreCase = true) ||
-            destination.safeCountry.contains(query, ignoreCase = true) ||
-            destination.safeDescription.contains(query, ignoreCase = true)
-        }
-        
-        // Filter tour packages by search query
-        val filteredTours = allTourPackages.filter { tourPackage ->
-            tourPackage.safeTitle.contains(query, ignoreCase = true) ||
-            tourPackage.safeDescription.contains(query, ignoreCase = true)
-        }
-        
-        _uiState.value = _uiState.value.copy(
-            searchResults = filteredDestinations,
-            searchTourResults = filteredTours
-        )
+        _uiState.value = _uiState.value.copy(searchQuery = query)
+        applyFiltersAndSort()
     }
-    
+
     fun clearSearch() {
-        _uiState.value = _uiState.value.copy(
-            searchQuery = "",
-            isSearchActive = false,
-            searchResults = emptyList(),
-            searchTourResults = emptyList()
-        )
+        updateSearchQuery("")
     }
-    
-    // Category filtering
-    fun filterByCategory(category: String?) {
-        _uiState.value = _uiState.value.copy(
-            selectedCategory = category,
-            filters = _uiState.value.filters.copy(category = category)
-        )
-        applyFiltersAndSort()
-    }
-    
-    // Apply filters
+
     fun applyFilters(filters: ExploreFilters) {
-        _uiState.value = _uiState.value.copy(
-            filters = filters,
-            selectedCategory = filters.category
-        )
+        _uiState.value = _uiState.value.copy(filters = filters)
         applyFiltersAndSort()
     }
-    
-    // Reset filters
+
     fun resetFilters() {
-        _uiState.value = _uiState.value.copy(
-            filters = ExploreFilters(),
-            selectedCategory = null
-        )
-        applyFiltersAndSort()
+        applyFilters(ExploreFilters())
     }
-    
-    // Sort functionality
+
     fun setSortOption(sortOption: SortOption) {
-        _uiState.value = _uiState.value.copy(
-            filters = _uiState.value.filters.copy(sortBy = sortOption)
-        )
-        applyFiltersAndSort()
+        applyFilters(_uiState.value.filters.copy(sortBy = sortOption))
     }
-    
-    // View mode toggle
-    fun toggleViewMode() {
-        val newMode = if (_uiState.value.viewMode == ViewMode.GRID) {
-            ViewMode.LIST
-        } else {
-            ViewMode.GRID
-        }
-        _uiState.value = _uiState.value.copy(viewMode = newMode)
-    }
-    
-    fun setViewMode(mode: ViewMode) {
-        _uiState.value = _uiState.value.copy(viewMode = mode)
-    }
-    
-    // Apply filters and sorting
-    private fun applyFiltersAndSort() {
-        val filters = _uiState.value.filters
-        
-        // Filter destinations
-        var filtered = allDestinations.filter { destination ->
-            val matchesCategory = filters.category == null || 
-                filters.category == "All" ||
-                destination.safeName.contains(filters.category!!, ignoreCase = true)
-            
-            val matchesRating = filters.minRating == null || 
-                destination.safeRating >= filters.minRating
-            
-            matchesCategory && matchesRating
-        }
-        
-        // Sort destinations
-        filtered = when (filters.sortBy) {
-            SortOption.PRICE_LOW_HIGH -> filtered.sortedBy { it.safeRating }
-            SortOption.PRICE_HIGH_LOW -> filtered.sortedByDescending { it.safeRating }
-            SortOption.NEWEST -> filtered.sortedByDescending { it.id }
-            SortOption.RATING -> filtered.sortedByDescending { it.safeRating }
-        }
-        
-        // Filter tour packages
-        var filteredTours = allTourPackages.filter { tourPackage ->
-            val matchesCategory = filters.category == null ||
-                filters.category == "All" ||
-                tourPackage.safeTitle.contains(filters.category!!, ignoreCase = true)
-            
-            val matchesMinPrice = filters.minPrice == null ||
-                tourPackage.safePrice >= filters.minPrice
-            
-            val matchesMaxPrice = filters.maxPrice == null ||
-                tourPackage.safePrice <= filters.maxPrice
-            
-            matchesCategory && matchesMinPrice && matchesMaxPrice
-        }
-        
-        // Sort tour packages
-        filteredTours = when (filters.sortBy) {
-            SortOption.PRICE_LOW_HIGH -> filteredTours.sortedBy { it.safePrice }
-            SortOption.PRICE_HIGH_LOW -> filteredTours.sortedByDescending { it.safePrice }
-            SortOption.NEWEST -> filteredTours.sortedByDescending { it.id }
-            SortOption.RATING -> filteredTours.sortedByDescending { it.safeRating }
-        }
-        
-        // Apply pagination
-        val paginatedDestinations = filtered.take(pageSize)
-        
-        _uiState.value = _uiState.value.copy(
-            filteredDestinations = paginatedDestinations,
-            filteredTourPackages = filteredTours,
-            currentPage = 1,
-            hasMorePages = filtered.size > pageSize
-        )
-    }
-    
-    // Toggle favorite for destination
-    fun toggleDestinationFavorite(destinationId: Int) {
-        val currentFavorites = _uiState.value.favoriteDestinationIds
-        val newFavorites = if (currentFavorites.contains(destinationId)) {
-            currentFavorites - destinationId
-        } else {
-            currentFavorites + destinationId
-        }
-        _uiState.value = _uiState.value.copy(favoriteDestinationIds = newFavorites)
-        // TODO: Save to local database/API
-    }
-    
-    // Toggle favorite for tour package
-    fun toggleTourFavorite(tourId: Int) {
-        val currentFavorites = _uiState.value.favoriteTourIds
-        val newFavorites = if (currentFavorites.contains(tourId)) {
-            currentFavorites - tourId
-        } else {
-            currentFavorites + tourId
-        }
-        _uiState.value = _uiState.value.copy(favoriteTourIds = newFavorites)
-        // TODO: Save to local database/API
-    }
-    
-    // Check if destination is favorite
-    fun isDestinationFavorite(destinationId: Int): Boolean {
-        return _uiState.value.favoriteDestinationIds.contains(destinationId)
-    }
-    
-    // Check if tour is favorite
-    fun isTourFavorite(tourId: Int): Boolean {
-        return _uiState.value.favoriteTourIds.contains(tourId)
-    }
-    
+
     fun clearError() {
         _uiState.value = _uiState.value.copy(error = null)
     }
-}
 
+    /**
+     * Search and filters are applied to the in-memory lists the API returned.
+     * Nothing here invents a category, price or rating that the backend did not
+     * provide.
+     */
+    private fun applyFiltersAndSort() {
+        val filters = _uiState.value.filters
+        val query = _uiState.value.searchQuery.trim()
+
+        val destinations = allDestinations.filter { destination ->
+            val matchesQuery = query.isBlank() ||
+                destination.safeName.contains(query, ignoreCase = true) ||
+                destination.safeCity.contains(query, ignoreCase = true) ||
+                destination.safeCountry.contains(query, ignoreCase = true) ||
+                destination.safeDescription.contains(query, ignoreCase = true)
+
+            val matchesRating = filters.minRating == null ||
+                destination.safeRating >= filters.minRating
+
+            matchesQuery && matchesRating
+        }
+
+        val sortedDestinations = when (filters.sortBy) {
+            SortOption.RATING -> destinations.sortedByDescending { it.safeRating }
+            SortOption.NEWEST -> destinations.sortedByDescending { it.id }
+            // Price lives on tour packages; destinations keep the API order.
+            SortOption.RECOMMENDED,
+            SortOption.PRICE_LOW_HIGH,
+            SortOption.PRICE_HIGH_LOW -> destinations
+        }
+
+        val tours = allTourPackages.filter { tourPackage ->
+            val matchesQuery = query.isBlank() ||
+                tourPackage.safeTitle.contains(query, ignoreCase = true) ||
+                tourPackage.safeDescription.contains(query, ignoreCase = true)
+
+            val matchesMinPrice = filters.minPrice == null ||
+                tourPackage.safePrice >= filters.minPrice
+
+            val matchesMaxPrice = filters.maxPrice == null ||
+                tourPackage.safePrice <= filters.maxPrice
+
+            val matchesRating = filters.minRating == null ||
+                tourPackage.safeRating >= filters.minRating
+
+            matchesQuery && matchesMinPrice && matchesMaxPrice && matchesRating
+        }
+
+        val sortedTours = when (filters.sortBy) {
+            SortOption.RATING -> tours.sortedByDescending { it.safeRating }
+            SortOption.NEWEST -> tours.sortedByDescending { it.id }
+            SortOption.PRICE_LOW_HIGH -> tours.sortedBy { it.safePrice }
+            SortOption.PRICE_HIGH_LOW -> tours.sortedByDescending { it.safePrice }
+            SortOption.RECOMMENDED -> tours
+        }
+
+        filteredDestinationPool = sortedDestinations
+
+        _uiState.value = _uiState.value.copy(
+            filteredDestinations = sortedDestinations.take(pageSize),
+            filteredTourPackages = sortedTours,
+            destinationMatchCount = sortedDestinations.size,
+            tourMatchCount = sortedTours.size,
+            currentPage = 1,
+            hasMorePages = sortedDestinations.size > pageSize
+        )
+    }
+}

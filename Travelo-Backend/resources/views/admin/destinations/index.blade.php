@@ -1,10 +1,10 @@
 @extends('layouts.admin')
 
-@section('title', 'Destinations Management | Travel Admin')
+@section('title', 'Destinations Management | Travelo Admin')
 
 <!-- Header -->
 @section('content')
-<header class="bg-white/80 backdrop-blur-md sticky top-0 z-20 border-b border-slate-200 px-8 py-4">
+<header class="bg-white sticky top-0 z-20 border-b border-slate-200 px-8 py-4">
     <div class="flex items-center justify-between max-w-7xl mx-auto">
         <div>
             <h2 class="text-2xl font-bold tracking-tight">Destinations</h2>

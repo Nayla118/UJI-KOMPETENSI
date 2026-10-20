@@ -5,11 +5,15 @@
     <title>{{ $title }}</title>
     <style>
         body {
-            font-family: Arial, sans-serif;
+            font-family: 'Nunito Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
             font-size: 12px;
+            color: #493747;
+            background: #FFFFFF;
         }
         h1 {
-            color: #2563EB;
+            color: #A95372;
+            font-family: 'Nunito', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            font-size: 20px;
             margin-bottom: 20px;
         }
         table {
@@ -18,26 +22,26 @@
             margin-top: 20px;
         }
         th, td {
-            border: 1px solid #ddd;
+            border: 1px solid #E7D9DF;
             padding: 8px;
             text-align: left;
         }
         th {
-            background-color: #2563EB;
+            background-color: #A95372;
             color: white;
             font-weight: bold;
         }
         tr:nth-child(even) {
-            background-color: #f9f9f9;
+            background-color: #FFF9F7;
         }
         .meta {
-            color: #666;
+            color: #6E5A68;
             font-size: 10px;
             margin-bottom: 20px;
         }
         @media print {
             body { font-size: 10px; }
-            th { background-color: #2563EB !important; color: white !important; -webkit-print-color-adjust: exact; }
+            th { background-color: #A95372 !important; color: white !important; -webkit-print-color-adjust: exact; }
         }
     </style>
 </head>
@@ -66,7 +70,7 @@
         </tbody>
     </table>
 
-    <div style="margin-top: 20px; font-size: 10px; color: #666;">
+    <div style="margin-top: 20px; font-size: 10px; color: #6E5A68;">
         Travelo - Travel Planner & Tour Booking System
     </div>
 </body>

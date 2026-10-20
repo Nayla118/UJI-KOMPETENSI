@@ -3,6 +3,9 @@ package com.naylaaisyah.traveloapp.util
 import android.content.Context
 import android.content.SharedPreferences
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -14,6 +17,18 @@ class SessionManager @Inject constructor(
         Constants.PREF_NAME,
         Context.MODE_PRIVATE
     )
+
+    // Emits once when an authenticated request is rejected with 401, so the
+    // UI can leave protected screens instead of showing stale data.
+    private val _sessionExpired = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val sessionExpired: SharedFlow<Unit> = _sessionExpired.asSharedFlow()
+
+    fun expireSession() {
+        if (authToken != null) {
+            clearSession()
+            _sessionExpired.tryEmit(Unit)
+        }
+    }
 
     fun saveAuthToken(token: String) {
         prefs.edit().putString(Constants.PREF_AUTH_TOKEN, token).apply()

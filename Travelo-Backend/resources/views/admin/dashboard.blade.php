@@ -1,10 +1,10 @@
 @extends('layouts.admin')
 
-@section('title', 'Dashboard | Travel Admin')
+@section('title', 'Dashboard | Travelo Admin')
 
 <!-- Header -->
 @section('content')
-<header class="bg-white/80 backdrop-blur-md sticky top-0 z-20 border-b border-slate-200 px-8 py-4">
+<header class="bg-white sticky top-0 z-20 border-b border-slate-200 px-8 py-4">
     <div class="flex items-center justify-between max-w-7xl mx-auto">
         <div>
             <h2 class="text-2xl font-bold tracking-tight">Dashboard</h2>
@@ -39,7 +39,7 @@
         <!-- Tour Packages -->
         <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200/60 flex flex-col justify-between">
             <div class="flex items-center justify-between mb-4">
-                <div class="p-2 bg-purple-50 text-purple-600 rounded-lg">
+                <div class="p-2 bg-blush text-primary rounded-lg">
                     <span class="material-symbols-outlined">inventory_2</span>
                 </div>
                 @if($tourPackageGrowth > 0)
@@ -94,7 +94,7 @@
             </div>
             <div>
                 <p class="text-slate-500 text-sm font-medium">Total Revenue</p>
-                <h3 class="text-3xl font-bold mt-1 text-slate-900">${{ number_format($totalRevenue, 0, ',', ',') }}</h3>
+                <h3 class="text-3xl font-bold mt-1 text-slate-900">Rp {{ number_format($totalRevenue, 0, ',', '.') }}</h3>
             </div>
         </div>
     </div>
@@ -104,7 +104,7 @@
         <!-- Revenue Overview -->
         <div class="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-slate-200/60">
             <div class="flex items-center justify-between mb-6">
-                <h2 class="text-lg font-bold text-slate-900">Revenue Overview</h2>
+                <h2 class="text-lg font-bold text-slate-900">Revenue Overview (Rp)</h2>
                 <select class="bg-slate-50 border-none rounded-lg text-xs font-medium focus:ring-0">
                     <option>Last 6 months</option>
                     <option>Last year</option>
@@ -123,20 +123,14 @@
                 $fillPath = $pathD . ' V 150 H 0 Z';
                 @endphp
                 <svg class="w-full h-full" preserveaspectratio="none" viewbox="0 0 400 150">
-                    <defs>
-                        <lineargradient id="gradient" x1="0" x2="0" y1="0" y2="1">
-                            <stop offset="0%" stop-color="#2563EB" stop-opacity="0.2"></stop>
-                            <stop offset="100%" stop-color="#2563EB" stop-opacity="0"></stop>
-                        </lineargradient>
-                    </defs>
-                    <path d="{{ $fillPath }}" fill="url(#gradient)"></path>
-                    <path d="{{ $pathD }}" fill="none" stroke="#2563EB" stroke-linecap="round" stroke-width="3"></path>
+                    <path d="{{ $fillPath }}" fill="#A95372" fill-opacity="0.12"></path>
+                    <path d="{{ $pathD }}" fill="none" stroke="#A95372" stroke-linecap="round" stroke-width="3"></path>
                 </svg>
                 <div class="absolute inset-0 flex flex-col justify-between pointer-events-none text-[10px] text-slate-400">
-                    <div class="border-b border-slate-100 w-full pb-1">{{ number_format($maxRevenue, 0, ',', ',') }}</div>
-                    <div class="border-b border-slate-100 w-full pb-1">{{ number_format($maxRevenue * 0.75, 0, ',', ',') }}</div>
-                    <div class="border-b border-slate-100 w-full pb-1">{{ number_format($maxRevenue * 0.5, 0, ',', ',') }}</div>
-                    <div class="border-b border-slate-100 w-full pb-1">{{ number_format($maxRevenue * 0.25, 0, ',', ',') }}</div>
+                    <div class="border-b border-slate-100 w-full pb-1">{{ number_format($maxRevenue, 0, ',', '.') }}</div>
+                    <div class="border-b border-slate-100 w-full pb-1">{{ number_format($maxRevenue * 0.75, 0, ',', '.') }}</div>
+                    <div class="border-b border-slate-100 w-full pb-1">{{ number_format($maxRevenue * 0.5, 0, ',', '.') }}</div>
+                    <div class="border-b border-slate-100 w-full pb-1">{{ number_format($maxRevenue * 0.25, 0, ',', '.') }}</div>
                     <div class="pb-1">0</div>
                 </div>
             </div>
@@ -176,7 +170,7 @@
                 @foreach($popularDestinations->skip(1)->take(3) as $index => $destination)
                 <div class="flex items-center justify-between">
                     <div class="flex items-center gap-2">
-                        <div class="w-2 h-2 rounded-full @if($index == 0) bg-blue-500 @elseif($index == 1) bg-emerald-500 @else bg-purple-500 @endif"></div>
+                        <div class="w-2 h-2 rounded-full @if($index == 0) bg-blue-500 @elseif($index == 1) bg-emerald-500 @else bg-primary-light @endif"></div>
                         <span class="text-sm font-medium">{{ $destination->name }}</span>
                     </div>
                     <span class="text-sm text-slate-500">{{ $destination->total_bookings }}</span>
@@ -243,7 +237,7 @@
                             @endif
                         </td>
                         <td class="px-6 py-4">
-                            <span class="text-sm font-semibold text-slate-900">${{ number_format($booking->total_price, 0, ',', ',') }}</span>
+                            <span class="text-sm font-semibold text-slate-900">Rp {{ number_format($booking->total_price, 0, ',', '.') }}</span>
                         </td>
                         <td class="px-6 py-4 text-right">
                             <a href="{{ route('admin.bookings.show', $booking->id) }}" class="text-slate-400 hover:text-slate-600">

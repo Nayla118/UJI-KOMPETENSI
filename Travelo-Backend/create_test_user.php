@@ -1,51 +1,63 @@
 <?php
-// Script untuk create Firebase user via PHP SDK
+
+if (PHP_SAPI !== 'cli') {
+    http_response_code(404);
+    exit;
+}
+
+/**
+ * Create a Firebase test account using the Admin SDK.
+ *
+ * Credentials and the password are read from the environment; never commit
+ * either. The password is not printed.
+ *
+ * Usage:
+ *   set TRAVELO_TEST_EMAIL=...
+ *   set TRAVELO_TEST_PASSWORD=...
+ *   php create_test_user.php
+ */
 
 require 'vendor/autoload.php';
 
 use Kreait\Firebase\Factory;
-use Kreait\Firebase\Messaging\CloudMessage;
 
-// Initialize Firebase
-$factory = (new Factory)
-    ->withServiceAccount('config/firebase.json');
+$credentials = getenv('FIREBASE_CREDENTIALS') ?: __DIR__.'/storage/app/firebase-auth.json';
+$email = getenv('TRAVELO_TEST_EMAIL');
+$password = getenv('TRAVELO_TEST_PASSWORD');
+$displayName = getenv('TRAVELO_TEST_NAME') ?: 'Travelo Test User';
 
-$auth = $factory->createAuth();
-
-// Test user credentials
-$email = 'test@travelo.com';
-$password = 'password123';
-$displayName = 'Test User';
-
-try {
-    // Check if user already exists
-    $user = $auth->getUserByEmail($email);
-    echo "✅ User already exists:\n";
-    echo "UID: {$user['uid']}\n";
-    echo "Email: {$user['email']}\n";
-} catch (\Exception $e) {
-    // User doesn't exist, create new
-    echo "Creating new Firebase user...\n";
-    
-    $userProperties = [
-        'email' => $email,
-        'password' => $password,
-        'displayName' => $displayName,
-        'emailVerified' => true,
-    ];
-    
-    $createdUser = $auth->createUser($userProperties);
-    
-    echo "✅ Firebase user created successfully!\n";
-    echo "UID: {$createdUser['uid']}\n";
-    echo "Email: {$createdUser['email']}\n";
-    echo "Display Name: {$createdUser['displayName']}\n";
+if (!$email || !$password) {
+    fwrite(STDERR, "Refusing to create a test account without TRAVELO_TEST_EMAIL and TRAVELO_TEST_PASSWORD.\n");
+    exit(1);
 }
 
-echo "\n========================================\n";
-echo "TEST CREDENTIALS:\n";
-echo "========================================\n";
-echo "Email: $email\n";
-echo "Password: $password\n";
-echo "========================================\n";
-echo "\nUse these credentials to login in the app!\n";
+if (!is_file($credentials)) {
+    fwrite(STDERR, "Firebase service-account file not found: {$credentials}\n");
+    exit(1);
+}
+
+$auth = (new Factory)->withServiceAccount($credentials)->createAuth();
+
+try {
+    $user = $auth->getUserByEmail($email);
+    echo "User already exists.\n";
+    echo "UID: {$user->uid}\n";
+    echo "Email: {$user->email}\n";
+} catch (\Throwable $e) {
+    try {
+        $created = $auth->createUser([
+            'email' => $email,
+            'password' => $password,
+            'displayName' => $displayName,
+            'emailVerified' => true,
+        ]);
+
+        echo "Firebase user created.\n";
+        echo "UID: {$created->uid}\n";
+        echo "Email: {$created->email}\n";
+        echo "Display name: {$created->displayName}\n";
+    } catch (\Throwable $createError) {
+        fwrite(STDERR, "Could not create Firebase user: {$createError->getMessage()}\n");
+        exit(1);
+    }
+}

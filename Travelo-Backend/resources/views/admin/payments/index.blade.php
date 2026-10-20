@@ -1,6 +1,6 @@
 @extends('layouts.admin')
 
-@section('title', 'Payment Logs - TravelAdmin')
+@section('title', 'Payment Logs - Travelo Admin')
 
 <!-- Header -->
 @section('content')
@@ -60,7 +60,7 @@
                             #BK-{{ str_pad($payment->booking_id, 4, '0', STR_PAD_LEFT) }}
                         </td>
                         <td class="px-6 py-5 text-sm font-medium text-slate-900">
-                            ${{ number_format($payment->amount, 0, ',', '.') }}
+                            Rp {{ number_format($payment->amount, 0, ',', '.') }}
                         </td>
                         <td class="px-6 py-5">
                             <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700">

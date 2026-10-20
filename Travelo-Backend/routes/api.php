@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BookingController;
 use App\Http\Controllers\Api\DestinationController;
 use App\Http\Controllers\Api\MidtransController;
+use App\Http\Controllers\Api\OtpController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\TourPackageController;
 use Illuminate\Support\Facades\Route;
@@ -27,9 +28,20 @@ Route::get('/tour-packages/destination/{destinationId}', [TourPackageController:
 Route::post('/auth/login', [AuthController::class, 'login']);
 Route::post('/auth/register', [AuthController::class, 'register']);
 
-// Midtrans webhook (no auth required)
+// Email OTP verification for login (send / resend / verify).
+// Rate-limited per IP; codes are additionally limited to 5 wrong attempts
+// and 60s between sends inside the controller.
+Route::post('/auth/otp/send', [OtpController::class, 'send'])->middleware('throttle:10,1');
+Route::post('/auth/otp/resend', [OtpController::class, 'resend'])->middleware('throttle:10,1');
+Route::post('/auth/otp/verify', [OtpController::class, 'verify'])->middleware('throttle:30,1');
+
+// Midtrans webhook (no auth required; signature is mandatory in the controller)
 Route::post('/midtrans/callback', [MidtransController::class, 'callback']);
 Route::post('/midtrans/notification', [MidtransController::class, 'notification']);
+Route::get('/midtrans/health', [MidtransController::class, 'health']);
+
+// Gate verification for backend-issued e-ticket tokens (no PII beyond trip details)
+Route::post('/tickets/verify', [BookingController::class, 'verifyTicket'])->middleware('throttle:60,1');
 
 // Protected routes
 Route::middleware('auth:sanctum')->group(function () {
@@ -40,6 +52,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/my-bookings', [BookingController::class, 'myBookings']);
     Route::post('/bookings', [BookingController::class, 'store']);
     Route::get('/bookings/{id}', [BookingController::class, 'show']);
+    Route::get('/bookings/{id}/e-ticket', [BookingController::class, 'eTicket']);
     
     // Payment routes - CRITICAL: Call these after payment to update status
     Route::get('/bookings/{bookingId}/payment-status', [PaymentController::class, 'getStatus']);

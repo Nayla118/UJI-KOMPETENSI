@@ -56,9 +56,9 @@
         <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
             <h3 class="text-lg font-semibold text-gray-800 mb-4">Statistics</h3>
             <div class="grid grid-cols-2 gap-4">
-                <div class="bg-purple-50 rounded-lg p-4">
-                    <p class="text-sm text-purple-600">Total Bookings</p>
-                    <p class="text-2xl font-bold text-purple-800">{{ $user->bookings->count() }}</p>
+                <div class="bg-blush rounded-lg p-4">
+                    <p class="text-sm text-primary">Total Bookings</p>
+                    <p class="text-2xl font-bold text-ink">{{ $user->bookings->count() }}</p>
                 </div>
                 <div class="bg-green-50 rounded-lg p-4">
                     <p class="text-sm text-green-600">Total Spent</p>

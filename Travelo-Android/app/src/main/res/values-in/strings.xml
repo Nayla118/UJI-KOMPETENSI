@@ -1,0 +1,30 @@
+<resources>
+    <string name="app_name">Travelo</string>
+
+    <!-- E-ticket -->
+    <string name="eticket_title">E-tiket</string>
+    <string name="eticket_close">Tutup e-tiket</string>
+    <string name="eticket_qr_description">Kode QR terverifikasi untuk %1$s</string>
+    <string name="eticket_qr_error">Kode QR tidak dapat dibuat di perangkat ini.</string>
+    <string name="eticket_verified">Terverifikasi oleh Travelo</string>
+    <string name="eticket_travel_date">Tanggal perjalanan</string>
+    <string name="eticket_travelers_label">Jumlah traveler</string>
+    <plurals name="eticket_travelers">
+        <item quantity="other">%1$d traveler</item>
+    </plurals>
+    <string name="eticket_duration">Durasi</string>
+    <plurals name="eticket_days">
+        <item quantity="other">%1$d hari</item>
+    </plurals>
+    <string name="eticket_booking_id">ID booking</string>
+    <string name="eticket_total_paid">Total dibayar</string>
+    <string name="eticket_issued_note">E-tiket ini diterbitkan oleh server Travelo setelah pembayaran kamu dikonfirmasi. Kode QR ditandatangani dan dapat diperiksa oleh tim gerbang kami.</string>
+    <string name="eticket_done">Selesai</string>
+    <string name="eticket_verifying">Memverifikasi e-tiket kamu…</string>
+    <string name="eticket_view">Lihat e-tiket</string>
+    <string name="eticket_tour_package">Paket tur</string>
+    <string name="eticket_load_failed">E-tiket tidak dapat dimuat. Silakan coba lagi.</string>
+    <string name="session_expired">Sesi kamu sudah berakhir. Silakan masuk lagi.</string>
+    <string name="offline_message">Kamu sedang offline. Periksa koneksi internet kamu.</string>
+    <string name="retry">Coba lagi</string>
+</resources>

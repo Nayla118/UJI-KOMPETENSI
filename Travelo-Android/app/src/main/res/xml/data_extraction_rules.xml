@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <data-extraction-rules>
-    <domain-config cleartextTrafficPermitted="true">
-        <domain includeSubdomains="true">localhost:8000</domain>
-        <domain includeSubdomains="true">postcartilaginous-erlinda-unchicly.ngrok-free.dev</domain>
-    </domain-config>
+    <cloud-backup>
+        <exclude domain="sharedpref" path="." />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="sharedpref" path="." />
+    </device-transfer>
 </data-extraction-rules>

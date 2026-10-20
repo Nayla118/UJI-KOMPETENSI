@@ -11,10 +11,51 @@ use App\Http\Controllers\Admin\TourPackageController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\ActivityLogController;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Http\Request;
 
 Route::get('/', function () {
     return redirect('/admin');
 });
+
+/*
+|--------------------------------------------------------------------------
+| Midtrans Snap callback landings (/booking/success|pending|error)
+|--------------------------------------------------------------------------
+| These are the URLs passed to Snap in `callbacks`. The Android payment
+| WebView intercepts them, so they are only actually loaded when the
+| redirect happens outside the app (e-wallet hand-off in another browser /
+| wallet webview). Returning 404 there looks exactly like a broken payment,
+| so render a small, honest status page instead.
+*/
+Route::get('/booking/{result}', function (string $result, Request $request) {
+    $bookingId = $request->query('booking_id');
+    $copy = match ($result) {
+        'success' => [
+            'title' => __('travelo.callback.success.title'),
+            'body' => __('travelo.callback.success.body'),
+            'tone' => '#4F7D66',
+        ],
+        'pending' => [
+            'title' => __('travelo.callback.pending.title'),
+            'body' => __('travelo.callback.pending.body'),
+            'tone' => '#8F5F36',
+        ],
+        default => [
+            'title' => __('travelo.callback.error.title'),
+            'body' => __('travelo.callback.error.body'),
+            'tone' => '#B03A4E',
+        ],
+    };
+
+    return response()->view('booking-callback', [
+        'title' => $copy['title'],
+        'body' => $copy['body'],
+        'tone' => $copy['tone'],
+        'bookingId' => $bookingId,
+        'result' => $result,
+    ]);
+})->where('result', 'success|pending|error');
+
 
 // Named login route for auth redirect
 Route::get('/login', function () {
@@ -24,7 +65,7 @@ Route::get('/login', function () {
 // Guest routes (login)
 Route::prefix('admin')->name('admin.')->group(function () {
     Route::get('/login', [LoginController::class, 'showLoginForm'])->name('login');
-    Route::post('/login', [LoginController::class, 'login']);
+    Route::post('/login', [LoginController::class, 'login'])->middleware('throttle:10,1');
     Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
 });
 

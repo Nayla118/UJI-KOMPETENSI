@@ -1,9 +1,47 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("kotlin-kapt")
     id("com.google.gms.google-services")
     id("com.google.dagger.hilt.android")
+}
+
+// API base URL is build configuration, not source code.
+//
+// Override per machine without touching the repo by adding one line to
+// local.properties (git-ignored):
+//     travelo.baseUrl=http://192.168.1.10:8000/          (debug)
+//     travelo.releaseBaseUrl=https://api.example.com/    (release)
+// or pass -Ptravelo.baseUrl=... / -Ptravelo.releaseBaseUrl=... on the command
+// line.
+//
+// Debug builds default to the host machine as seen from the Android emulator
+// (10.0.2.2). Use your computer's LAN IP for a physical device. Release builds
+// fall back to the existing tunnel so a local override can never leak into a
+// release by accident.
+val localProperties = Properties().apply {
+    val file = rootProject.file("local.properties")
+    if (file.exists()) {
+        file.inputStream().use { load(it) }
+    }
+}
+fun normalisedBaseUrl(raw: String?): String? =
+    raw?.let { if (it.endsWith("/")) it else "$it/" }
+
+val traveloDebugBaseUrl = normalisedBaseUrl(
+    localProperties.getProperty("travelo.baseUrl")
+        ?: (project.findProperty("travelo.baseUrl") as String?)
+)
+val traveloReleaseBaseUrl = normalisedBaseUrl(
+    localProperties.getProperty("travelo.releaseBaseUrl")
+        ?: (project.findProperty("travelo.releaseBaseUrl") as String?)
+)
+val effectiveReleaseBaseUrl = traveloReleaseBaseUrl
+    ?: "https://postcartilaginous-erlinda-unchicly.ngrok-free.dev/"
+require(effectiveReleaseBaseUrl.startsWith("https://")) {
+    "Release builds must use an https:// API URL. Got: $effectiveReleaseBaseUrl"
 }
 
 android {
@@ -24,7 +62,19 @@ android {
     }
 
     buildTypes {
+        debug {
+            buildConfigField(
+                "String",
+                "BASE_URL",
+                "\"${traveloDebugBaseUrl ?: "http://10.0.2.2:8000/"}\""
+            )
+        }
         release {
+            buildConfigField(
+                "String",
+                "BASE_URL",
+                "\"$effectiveReleaseBaseUrl\""
+            )
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
@@ -41,6 +91,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     composeOptions {
         kotlinCompilerExtensionVersion = "1.5.8"
@@ -62,6 +113,10 @@ dependencies {
     implementation("androidx.compose.ui:ui-tooling-preview:1.6.2")
     implementation("androidx.compose.material3:material3:1.1.2")
 
+    // Pull-to-refresh. Material3 1.1.x has no PullToRefreshBox yet, so use
+    // the stable Material pull-refresh modifier alongside M3 components.
+    implementation("androidx.compose.material:material:1.6.2")
+
     // Material Icons Extended
     implementation("androidx.compose.material:material-icons-extended:1.6.2")
 
@@ -81,6 +136,9 @@ dependencies {
 
     // Image Loading
     implementation("io.coil-kt:coil-compose:2.5.0")
+
+    // Renders the backend-issued, signed e-ticket QR payload on-device.
+    implementation("com.google.zxing:core:3.5.3")
 
     // Retrofit & OkHttp
     implementation("com.squareup.retrofit2:retrofit:2.9.0")

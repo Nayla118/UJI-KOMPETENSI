@@ -1,6 +1,6 @@
 @extends('layouts.admin')
 
-@section('title', 'User Management - TravelAdmin')
+@section('title', 'User Management - Travelo Admin')
 
 <!-- Header -->
 @section('content')

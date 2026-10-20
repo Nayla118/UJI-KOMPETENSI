@@ -35,6 +35,22 @@ data class AuthResponse(
     val user: User? = null
 )
 
+// Email OTP verification (login step 2). The 6-digit code is only ever sent
+// by email — it never travels through the API in plaintext.
+data class OtpSendResponse(
+    val email: String? = null,
+    @SerializedName("expires_in")
+    val expiresIn: Int = 300,
+    @SerializedName("resend_after")
+    val resendAfter: Int = 60
+)
+
+data class OtpVerifyRequest(
+    @SerializedName("id_token")
+    val idToken: String,
+    val code: String
+)
+
 // Destination Models
 data class Destination(
     val id: Int,
@@ -145,6 +161,29 @@ data class Booking(
     val createdAt: String? = null
 )
 
+/**
+ * Backend-issued e-ticket. The reference and signed token are created only
+ * after the API verifies ownership and a confirmed payment; the app must never
+ * derive a ticket from a local booking id.
+ */
+data class ETicket(
+    val reference: String,
+    @SerializedName("ticket_token")
+    val ticketToken: String,
+    @SerializedName("issued_at")
+    val issuedAt: String? = null,
+    @SerializedName("booking_id")
+    val bookingId: Int,
+    @SerializedName("tour_title")
+    val tourTitle: String? = null,
+    @SerializedName("booking_date")
+    val bookingDate: String? = null,
+    @SerializedName("people_count")
+    val peopleCount: Int? = null,
+    @SerializedName("holder_name")
+    val holderName: String? = null
+)
+
 data class BookingRequest(
     @SerializedName("tour_package_id")
     val tourPackageId: Int,
@@ -198,6 +237,10 @@ data class PaymentStatusInfo(
     val method: String? = null,
     @SerializedName("payment_method")
     val paymentMethodAlt: String? = null,
+    @SerializedName("channel")
+    val channel: String? = null,
+    @SerializedName("transaction_status")
+    val transactionStatus: String? = null,
     val amount: Double? = null,
     @SerializedName("midtrans_transaction_id")
     val transactionId: String? = null,
@@ -232,13 +275,90 @@ data class Payment(
     val amount: Double,
     @SerializedName("payment_status")
     val status: String,
+    // Nullable: backend sends null until the user picks a method in Snap.
     @SerializedName("payment_method")
-    val paymentMethod: String,
+    val paymentMethod: String? = null,
+    @SerializedName("payment_channel")
+    val paymentChannel: String? = null,
+    @SerializedName("transaction_status")
+    val transactionStatus: String? = null,
     @SerializedName("midtrans_transaction_id")
     val transactionId: String? = null,
     @SerializedName("created_at")
     val createdAt: String? = null
 )
+
+/** Unified, user-facing payment state derived from backend truth. */
+enum class PaymentOutcome {
+    SUCCESS, WAITING, FAILED, EXPIRED, CANCELLED
+}
+
+fun Payment.outcome(): PaymentOutcome {
+    val raw = transactionStatus?.lowercase()
+    if (raw == "cancel") return PaymentOutcome.CANCELLED
+    return when (status.lowercase()) {
+        "paid", "success", "settlement" -> PaymentOutcome.SUCCESS
+        "expired", "expire" -> PaymentOutcome.EXPIRED
+        "failed", "deny", "cancel" -> PaymentOutcome.FAILED
+        else -> PaymentOutcome.WAITING
+    }
+}
+
+fun Booking.paymentOutcome(): PaymentOutcome {
+    val p = payment ?: return if (status.lowercase() == "confirmed") {
+        PaymentOutcome.SUCCESS
+    } else {
+        PaymentOutcome.WAITING
+    }
+    val outcome = p.outcome()
+    // Booking confirmed always wins (backend source of truth for success).
+    if (status.lowercase() == "confirmed") return PaymentOutcome.SUCCESS
+    return outcome
+}
+
+fun PaymentStatusData.outcome(): PaymentOutcome {
+    val raw = payment?.transactionStatus?.lowercase()
+    val ps = (paymentStatus ?: status ?: payment?.status)?.lowercase()
+    val bs = (bookingStatus ?: bookingStatusAlt)?.lowercase()
+    if (bs == "confirmed" || ps == "paid" || ps == "success" || ps == "settlement") {
+        return PaymentOutcome.SUCCESS
+    }
+    if (ps == "expired" || ps == "expire") return PaymentOutcome.EXPIRED
+    if (ps == "failed" || ps == "deny" || ps == "cancel") {
+        return if (raw == "cancel") PaymentOutcome.CANCELLED else PaymentOutcome.FAILED
+    }
+    return PaymentOutcome.WAITING
+}
+
+/** Friendly payment method label, e.g. "GoPay", "QRIS", "BCA Virtual Account". */
+fun Payment.displayMethod(): String {
+    val method = (paymentMethod ?: "").lowercase()
+    val channel = (paymentChannel ?: "").lowercase()
+    return when (method) {
+        "credit_card" -> "Credit/Debit Card"
+        "qris" -> "QRIS"
+        "gopay" -> "GoPay"
+        "shopeepay" -> "ShopeePay"
+        "ovo" -> "OVO"
+        "dana" -> "DANA"
+        "linkaja" -> "LinkAja"
+        "bank_transfer" -> if (channel.isNotEmpty()) "${channel.uppercase()} Virtual Account" else "Bank Transfer"
+        "echannel" -> "Mandiri Bill"
+        "bca_klikpay" -> "BCA KlikPay"
+        "bri_epay" -> "BRI ePay"
+        "cimb_clicks" -> "CIMB Clicks"
+        "danamon_online" -> "Danamon Online"
+        "akulaku" -> "Akulaku"
+        "kredivo" -> "Kredivo"
+        "uob_ezpay" -> "UOB eZPay"
+        "cstore" -> if (channel.isNotEmpty()) {
+            "Gerai ${channel.replaceFirstChar { it.uppercase() }}"
+        } else {
+            "Gerai Retail"
+        }
+        else -> if (method.isNotEmpty()) method else "Payment"
+    }
+}
 
 data class PaymentRequest(
     val booking_id: Int,

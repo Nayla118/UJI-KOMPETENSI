@@ -20,7 +20,7 @@
                 <span class="material-symbols-outlined text-lg">arrow_back</span>
                 Back
             </a>
-            <button type="submit" form="tour-package-form" class="inline-flex items-center gap-2 px-6 py-2.5 bg-linear-to-r from-primary to-primary-dark text-white font-semibold rounded-xl shadow-lg shadow-primary/25 hover:shadow-primary/40 hover:-translate-y-0.5 transition-all duration-200">
+            <button type="submit" form="tour-package-form" class="inline-flex items-center gap-2 px-6 py-2.5 bg-primary text-white font-semibold rounded-xl shadow-sm transition-colors duration-200">
                 <span class="material-symbols-outlined text-lg">save</span>
                 Save Changes
             </button>
@@ -64,7 +64,7 @@
             <div class="lg:col-span-2 space-y-6">
                 <!-- Package Information -->
                 <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                    <div class="bg-linear-to-r from-primary/5 to-transparent px-6 py-4 border-b border-slate-100">
+                    <div class="bg-blush/40 px-6 py-4 border-b border-slate-100">
                         <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
                             <span class="material-symbols-outlined text-primary">info</span>
                             Package Information
@@ -109,7 +109,7 @@
 
                 <!-- Pricing & Details -->
                 <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                    <div class="bg-linear-to-r from-primary/5 to-transparent px-6 py-4 border-b border-slate-100">
+                    <div class="bg-blush/40 px-6 py-4 border-b border-slate-100">
                         <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
                             <span class="material-symbols-outlined text-primary">tune</span>
                             Pricing & Details
@@ -201,7 +201,7 @@
             <div class="space-y-6">
                 <!-- Destination Selection -->
                 <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                    <div class="bg-linear-to-r from-primary/5 to-transparent px-6 py-4 border-b border-slate-100">
+                    <div class="bg-blush/40 px-6 py-4 border-b border-slate-100">
                         <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
                             <span class="material-symbols-outlined text-primary">location_on</span>
                             Destination
@@ -234,7 +234,7 @@
 
                 <!-- Package Image -->
                 <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                    <div class="bg-linear-to-r from-primary/5 to-transparent px-6 py-4 border-b border-slate-100">
+                    <div class="bg-blush/40 px-6 py-4 border-b border-slate-100">
                         <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
                             <span class="material-symbols-outlined text-primary">image</span>
                             Package Image
@@ -261,7 +261,7 @@
                                     <span class="material-symbols-outlined text-slate-300 text-5xl">image</span>
                                 </div>
                                 @endif
-                                <div class="absolute inset-0 bg-linear-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300 flex items-end justify-between p-4">
+                                <div class="absolute inset-0 bg-black/45 opacity-0 group-hover:opacity-100 transition-all duration-300 flex items-end justify-between p-4">
                                     <span class="text-white font-semibold text-sm">{{ $tourPackage->title }}</span>
                                     <button type="button" onclick="document.getElementById('image-upload').click()" class="text-white hover:text-primary transition-colors">
                                         <span class="material-symbols-outlined">edit</span>
@@ -294,7 +294,7 @@
                             <div class="flex items-center justify-between p-3 bg-slate-50 rounded-lg" id="image-status-message">
                                 <div class="flex items-center gap-2">
                                     <span class="material-symbols-outlined" id="status-icon">{{ $tourPackage->image ? 'check_circle' : 'image' }}</span>
-                                    <span class="text-sm" id="status-text" style="color: {{ $tourPackage->image ? '#16a34a' : '#6b7280' }}">
+                                    <span class="text-sm" id="status-text" style="color: {{ $tourPackage->image ? '#4F7D66' : '#6E5A68' }}">
                                         {{ $tourPackage->image ? 'Current image will be kept' : 'No image selected' }}
                                     </span>
                                 </div>
@@ -318,7 +318,7 @@
 
                 <!-- Package Stats -->
                 <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                    <div class="bg-linear-to-r from-primary/5 to-transparent px-6 py-4 border-b border-slate-100">
+                    <div class="bg-blush/40 px-6 py-4 border-b border-slate-100">
                         <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
                             <span class="material-symbols-outlined text-primary">insights</span>
                             Package Stats
@@ -326,7 +326,7 @@
                         <p class="text-sm text-slate-500 mt-1">Quick overview</p>
                     </div>
                     <div class="p-6 space-y-3">
-                        <div class="bg-linear-to-br from-slate-50 to-white rounded-xl p-4 border border-slate-100 shadow-sm">
+                        <div class="bg-cream rounded-xl p-4 border border-slate-100 shadow-sm">
                             <div class="flex items-center gap-3">
                                 <div class="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center">
                                     <span class="material-symbols-outlined text-blue-600">calendar_today</span>
@@ -337,7 +337,7 @@
                                 </div>
                             </div>
                         </div>
-                        <div class="bg-linear-to-br from-slate-50 to-white rounded-xl p-4 border border-slate-100 shadow-sm">
+                        <div class="bg-cream rounded-xl p-4 border border-slate-100 shadow-sm">
                             <div class="flex items-center gap-3">
                                 <div class="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center">
                                     <span class="material-symbols-outlined text-green-600">people</span>
@@ -348,7 +348,7 @@
                                 </div>
                             </div>
                         </div>
-                        <div class="bg-linear-to-br from-slate-50 to-white rounded-xl p-4 border border-slate-100 shadow-sm">
+                        <div class="bg-cream rounded-xl p-4 border border-slate-100 shadow-sm">
                             <div class="flex items-center gap-3">
                                 <div class="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center">
                                     <span class="material-symbols-outlined text-amber-600">attach_money</span>
@@ -359,10 +359,10 @@
                                 </div>
                             </div>
                         </div>
-                        <div class="bg-linear-to-br from-slate-50 to-white rounded-xl p-4 border border-slate-100 shadow-sm">
+                        <div class="bg-cream rounded-xl p-4 border border-slate-100 shadow-sm">
                             <div class="flex items-center gap-3">
-                                <div class="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center">
-                                    <span class="material-symbols-outlined text-purple-600">star</span>
+                                <div class="w-10 h-10 rounded-xl bg-blush flex items-center justify-center">
+                                    <span class="material-symbols-outlined text-primary">star</span>
                                 </div>
                                 <div>
                                     <p class="text-2xl font-bold text-slate-800">{{ number_format($tourPackage->rating ?? 4.5, 1) }}</p>
@@ -374,7 +374,7 @@
                 </div>
 
                 <!-- Help Card -->
-                <div class="bg-linear-to-br from-primary/10 to-blue-600/10 rounded-2xl p-6 border border-primary/20">
+                <div class="bg-blush rounded-2xl p-6 border border-primary/20">
                     <div class="flex items-start gap-3">
                         <span class="material-symbols-outlined text-primary text-3xl">lightbulb</span>
                         <div>
@@ -389,7 +389,7 @@
         </div>
 
         <!-- Sticky Bottom Action Bar -->
-        <div class="sticky bottom-0 bg-white/80 backdrop-blur-lg border-t border-slate-200 py-4 -mx-8 px-8 flex items-center justify-between">
+        <div class="sticky bottom-0 bg-white border-t border-slate-200 py-4 -mx-8 px-8 flex items-center justify-between">
             <div class="text-sm text-slate-600">
                 <span class="font-semibold text-slate-900">Last updated:</span> {{ $tourPackage->updated_at->diffForHumans() }}
             </div>
@@ -397,7 +397,7 @@
                 <a href="{{ route('admin.tour-packages.index') }}" class="inline-flex items-center gap-2 px-5 py-2.5 bg-white text-slate-700 font-semibold rounded-xl border border-slate-200 hover:bg-slate-50 transition-all shadow-sm">
                     Cancel
                 </a>
-                <button type="submit" class="inline-flex items-center gap-2 px-6 py-2.5 bg-linear-to-r from-primary to-primary-dark text-white font-semibold rounded-xl shadow-lg shadow-primary/25 hover:shadow-primary/40 hover:-translate-y-0.5 transition-all duration-200">
+                <button type="submit" class="inline-flex items-center gap-2 px-6 py-2.5 bg-primary text-white font-semibold rounded-xl shadow-sm transition-colors duration-200">
                     <span class="material-symbols-outlined text-lg">save</span>
                     Save Changes
                 </button>
@@ -419,7 +419,7 @@
                 // Create new image preview
                 const newHTML = `
                     <img src="${e.target.result}" class="w-full h-48 object-cover" alt="New Preview">
-                    <div class="absolute inset-0 bg-linear-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300 flex items-end justify-between p-4">
+                    <div class="absolute inset-0 bg-black/45 opacity-0 group-hover:opacity-100 transition-all duration-300 flex items-end justify-between p-4">
                         <span class="text-white font-semibold text-sm">New Image Preview</span>
                         <button type="button" onclick="document.getElementById('image-upload').click()" class="text-white hover:text-primary transition-colors">
                             <span class="material-symbols-outlined">edit</span>
@@ -433,11 +433,11 @@
                 const statusIcon = document.getElementById('status-icon');
                 if (statusText) {
                     statusText.textContent = 'New image will replace the current one';
-                    statusText.style.color = '#16a34a';
+                    statusText.style.color = '#4F7D66';
                 }
                 if (statusIcon) {
                     statusIcon.textContent = 'check_circle';
-                    statusIcon.style.color = '#16a34a';
+                    statusIcon.style.color = '#4F7D66';
                 }
                 
                 // Update upload text
@@ -469,11 +469,11 @@
         // Update status message
         if (statusText) {
             statusText.textContent = 'Image will be removed';
-            statusText.style.color = '#dc2626';
+            statusText.style.color = '#B03A4E';
         }
         if (statusIcon) {
             statusIcon.textContent = 'delete';
-            statusIcon.style.color = '#dc2626';
+            statusIcon.style.color = '#B03A4E';
         }
         
         // Update upload text

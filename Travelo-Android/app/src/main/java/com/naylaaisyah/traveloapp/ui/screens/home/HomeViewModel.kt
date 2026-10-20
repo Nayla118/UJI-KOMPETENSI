@@ -78,4 +78,9 @@ class HomeViewModel @Inject constructor(
     fun updateSearchQuery(query: String) {
         _uiState.value = _uiState.value.copy(searchQuery = query)
     }
+
+    /** Dismiss a message that was already surfaced (e.g. a snackbar). */
+    fun clearError() {
+        _uiState.value = _uiState.value.copy(error = null)
+    }
 }

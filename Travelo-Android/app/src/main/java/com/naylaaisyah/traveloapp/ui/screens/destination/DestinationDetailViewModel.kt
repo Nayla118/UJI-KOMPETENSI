@@ -17,7 +17,8 @@ data class DestinationDetailUiState(
     val destination: Destination? = null,
     val tourPackages: List<TourPackage> = emptyList(),
     val isLoading: Boolean = true,
-    val error: String? = null
+    val error: String? = null,
+    val toursError: String? = null
 )
 
 @HiltViewModel
@@ -30,30 +31,57 @@ class DestinationDetailViewModel @Inject constructor(
 
     fun loadDestination(id: Int) {
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true, error = null)
+            _uiState.value = DestinationDetailUiState(isLoading = true)
 
             when (val result = repository.getDestinationDetail(id)) {
                 is Resource.Success -> {
                     _uiState.value = _uiState.value.copy(
                         destination = result.data,
-                        isLoading = false
+                        error = null
                     )
+                    // Keep isTourLoading true while the second request runs, so
+                    // the page never flashes "no tour packages" before they load.
+                    loadTourPackages(id)
                 }
+
                 is Resource.Error -> {
                     _uiState.value = _uiState.value.copy(
                         isLoading = false,
                         error = result.message
                     )
                 }
-                else -> {}
+
+                is Resource.Loading -> Unit
+            }
+        }
+    }
+
+    fun retryTourPackages() {
+        val destinationId = _uiState.value.destination?.id ?: return
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoading = true, toursError = null)
+            loadTourPackages(destinationId)
+        }
+    }
+
+    private suspend fun loadTourPackages(id: Int) {
+        when (val result = repository.getTourPackagesByDestination(id)) {
+            is Resource.Success -> {
+                _uiState.value = _uiState.value.copy(
+                    tourPackages = result.data,
+                    toursError = null,
+                    isLoading = false
+                )
             }
 
-            when (val result = repository.getTourPackagesByDestination(id)) {
-                is Resource.Success -> {
-                    _uiState.value = _uiState.value.copy(tourPackages = result.data)
-                }
-                else -> {}
+            is Resource.Error -> {
+                _uiState.value = _uiState.value.copy(
+                    toursError = result.message,
+                    isLoading = false
+                )
             }
+
+            is Resource.Loading -> Unit
         }
     }
 }

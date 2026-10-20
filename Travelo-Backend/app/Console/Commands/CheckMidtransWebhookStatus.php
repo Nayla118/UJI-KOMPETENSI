@@ -25,9 +25,24 @@ class CheckMidtransWebhookStatus extends Command
             return 1;
         }
 
-        $this->info('✓ Server Key: ' . substr($serverKey, 0, 10) . '...');
+        // Fail-fast configuration audit: a mismatched key/environment pair
+        // makes Snap + Status API + webhook signature ALL fail, which
+        // surfaces to users as "stuck pending".
+        $keyLooksSandbox = str_starts_with($serverKey, 'SB-Mid-server-');
+        $keyLooksProduction = str_starts_with($serverKey, 'Mid-server-') && !$keyLooksSandbox;
+        $consistent = ($isProduction && $keyLooksProduction) || (!$isProduction && $keyLooksSandbox);
+
+        $this->info('✓ Server Key: configured (value hidden)');
         $this->info('✓ Production Mode: ' . ($isProduction ? 'YES' : 'NO (SANDBOX)'));
-        $this->info('✓ Merchant ID: ' . $merchantId);
+        $this->info('✓ Merchant ID: ' . ($merchantId ? 'configured' : 'missing'));
+        $this->info('✓ Key format: ' . ($keyLooksSandbox ? 'sandbox (SB-Mid-server-...)' : ($keyLooksProduction ? 'production (Mid-server-...)' : 'UNKNOWN')));
+        if (!$consistent) {
+            $this->error('❌ MISMATCH: key format does not match MIDTRANS_IS_PRODUCTION. '
+                . 'Status API (401) + webhook signature will fail and payments stay pending. '
+                . ($isProduction ? 'Use a production Mid-server-... key.' : 'Use a Sandbox SB-Mid-server-... key from https://dashboard.sandbox.midtrans.com.'));
+        } else {
+            $this->info('✓ Key/environment pair is consistent.');
+        }
         $this->info('');
 
         // Check recent bookings
@@ -49,7 +64,7 @@ class CheckMidtransWebhookStatus extends Command
             $statusColor = match ($payment?->payment_status) {
                 'paid' => "\033[32m✓\033[0m",  // Green
                 'pending' => "\033[33m⏳\033[0m", // Yellow
-                'failed' => "\033[31m✗\033[0m",   // Red
+                'failed', 'expired', 'cancelled' => "\033[31m✗\033[0m",   // Red
                 default => '?'
             };
 

@@ -17,19 +17,23 @@ class MidtransController extends Controller
     ) {}
 
     /**
-     * Verify webhook signature from Midtrans
+     * Verify webhook signature from Midtrans:
+     * SHA512(order_id + status_code + gross_amount + server_key).
      */
     private function verifySignature(Request $request, string $signature): bool
     {
-        $serverKey = config('services.midtrans.server_key');
-        $orderId = $request->order_id;
-        $statusCode = $request->status_code;
-        $grossAmount = $request->gross_amount;
+        $serverKey = (string) config('services.midtrans.server_key');
+        $orderId = (string) $request->input('order_id');
+        $statusCode = (string) $request->input('status_code');
+        $grossAmount = (string) $request->input('gross_amount');
 
-        $data = $orderId . $statusCode . $grossAmount . $serverKey;
-        $hash = hash('sha512', $data);
+        if ($serverKey === '' || $orderId === '' || $statusCode === '' || $grossAmount === '') {
+            return false;
+        }
 
-        return $hash === $signature;
+        $hash = hash('sha512', $orderId . $statusCode . $grossAmount . $serverKey);
+
+        return hash_equals($hash, strtolower($signature));
     }
 
     /**
@@ -38,25 +42,25 @@ class MidtransController extends Controller
      */
     public function callback(Request $request): JsonResponse
     {
-        Log::info('=== MIDTRANS WEBHOOK RECEIVED ===');
-        Log::info('Order ID: ' . ($request->order_id ?? 'missing'));
-        Log::info('Transaction Status: ' . ($request->transaction_status ?? 'missing'));
-        Log::info('Status Code: ' . ($request->status_code ?? 'missing'));
-        Log::info('Full payload: ' . json_encode($request->all()));
+        Log::info('Midtrans webhook received', [
+            'order_id' => $request->input('order_id'),
+            'transaction_status' => $request->input('transaction_status'),
+        ]);
 
-        // Verify signature for security
-        if ($request->has('signature_key')) {
-            if (!$this->verifySignature($request, $request->signature_key)) {
-                Log::error('Invalid webhook signature');
-                // Still return 200 to avoid Midtrans retrying
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Invalid signature',
-                ], 200);
-            }
-            Log::info('✓ Webhook signature verified successfully');
-        } else {
-            Log::warning('No signature provided in webhook');
+        // A webhook without a valid signature is an unauthenticated payment
+        // claim. Never process it: previously a missing signature was only
+        // logged as a warning and the payload was still trusted.
+        $signature = $request->input('signature_key');
+
+        if (!is_string($signature) || !$this->verifySignature($request, $signature)) {
+            Log::warning('Rejected Midtrans webhook with invalid or missing signature', [
+                'order_id' => $request->input('order_id'),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid signature',
+            ], 401);
         }
 
         // Validate required fields
@@ -130,7 +134,7 @@ class MidtransController extends Controller
             // Return 200 anyway - webhook shouldn't fail due to our errors
             return response()->json([
                 'success' => false,
-                'message' => 'Error processing: ' . $e->getMessage(),
+                'message' => 'Webhook processing failed',
             ], 200);
         }
     }
@@ -141,6 +145,33 @@ class MidtransController extends Controller
     public function notification(Request $request): JsonResponse
     {
         return $this->callback($request);
+    }
+
+    /**
+     * Public health check for webhook wiring (no secrets leaked).
+     * Use to verify ngrok/base URL reaches Laravel and config is sane.
+     */
+    public function health(): JsonResponse
+    {
+        $serverKey = (string) config('services.midtrans.server_key');
+        $isProduction = (bool) config('services.midtrans.is_production', false);
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'server_key_configured' => $serverKey !== '',
+                'server_key_format' => $serverKey === ''
+                    ? 'missing'
+                    : (str_starts_with($serverKey, 'SB-Mid-server-') ? 'sandbox' : (str_starts_with($serverKey, 'Mid-server-') ? 'production' : 'unknown')),
+                'is_production' => $isProduction,
+                'config_consistent' => $serverKey === ''
+                    ? false
+                    : ($isProduction ? str_starts_with($serverKey, 'Mid-server-') : str_starts_with($serverKey, 'SB-Mid-server-')),
+                'app_url' => config('app.url'),
+                'webhook_callback' => rtrim((string) config('app.url'), '/') . '/api/midtrans/callback',
+                'webhook_notification' => rtrim((string) config('app.url'), '/') . '/api/midtrans/notification',
+            ],
+        ]);
     }
 
     /**
@@ -177,7 +208,7 @@ class MidtransController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to synchronize payment status: ' . $e->getMessage(),
+                'message' => 'Failed to synchronize payment status. Please try again.',
             ], 500);
         }
     }
@@ -205,6 +236,8 @@ class MidtransController extends Controller
                     'id' => $payment->id ?? null,
                     'status' => $payment->payment_status ?? 'pending',
                     'method' => $payment->payment_method ?? null,
+                    'channel' => $payment->payment_channel ?? null,
+                    'transaction_status' => $payment->transaction_status ?? null,
                     'amount' => $payment->amount ?? null,
                     'transaction_id' => $payment->midtrans_transaction_id ?? null,
                     'updated_at' => $payment->updated_at ?? null,

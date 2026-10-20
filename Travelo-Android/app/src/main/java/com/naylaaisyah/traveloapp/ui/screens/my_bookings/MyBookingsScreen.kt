@@ -1,39 +1,36 @@
 package com.naylaaisyah.traveloapp.ui.screens.my_bookings
 
-import android.app.Activity
-import android.content.Intent
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.ConfirmationNumber
+import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.HourglassEmpty
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.People
-import androidx.compose.material.icons.filled.Pending
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.WarningAmber
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.ExperimentalMaterialApi
+import androidx.compose.material.pullrefresh.PullRefreshIndicator
+import androidx.compose.material.pullrefresh.pullRefresh
+import androidx.compose.material.pullrefresh.rememberPullRefreshState
 import androidx.compose.material3.Divider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -41,102 +38,81 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.AlertDialog
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLifecycleOwner
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
+import com.naylaaisyah.traveloapp.R
 import com.naylaaisyah.traveloapp.data.models.Booking
+import com.naylaaisyah.traveloapp.data.models.PaymentOutcome
+import com.naylaaisyah.traveloapp.data.models.paymentOutcome
 import com.naylaaisyah.traveloapp.data.models.safeTitle
-import com.naylaaisyah.traveloapp.ui.components.ErrorMessage
-import com.naylaaisyah.traveloapp.ui.components.LoadingIndicator
+import com.naylaaisyah.traveloapp.ui.components.TraveloButton
+import com.naylaaisyah.traveloapp.ui.components.TraveloButtonSize
+import com.naylaaisyah.traveloapp.ui.components.TraveloButtonVariant
+import com.naylaaisyah.traveloapp.ui.components.TraveloCard
+import com.naylaaisyah.traveloapp.ui.components.TraveloEmptyState
+import com.naylaaisyah.traveloapp.ui.components.TraveloErrorState
+import com.naylaaisyah.traveloapp.ui.components.TraveloLoadingState
+import com.naylaaisyah.traveloapp.ui.components.TraveloPriceText
 import com.naylaaisyah.traveloapp.ui.components.TraveloTopBar
-import com.naylaaisyah.traveloapp.ui.screens.payment.PaymentWebViewActivity
-import com.naylaaisyah.traveloapp.ui.theme.Background
-import com.naylaaisyah.traveloapp.ui.theme.Error
-import com.naylaaisyah.traveloapp.ui.theme.Gray200
-import com.naylaaisyah.traveloapp.ui.theme.Gray400
-import com.naylaaisyah.traveloapp.ui.theme.Gray500
-import com.naylaaisyah.traveloapp.ui.theme.Gray600
-import com.naylaaisyah.traveloapp.ui.theme.Gray700
-import com.naylaaisyah.traveloapp.ui.theme.Primary
-import com.naylaaisyah.traveloapp.ui.theme.Surface
-import com.naylaaisyah.traveloapp.ui.theme.Success
-import com.naylaaisyah.traveloapp.ui.theme.Warning
+import com.naylaaisyah.traveloapp.ui.theme.DangerDeep
+import com.naylaaisyah.traveloapp.ui.theme.DangerTint
+import com.naylaaisyah.traveloapp.ui.theme.PillShape
+import com.naylaaisyah.traveloapp.ui.theme.PlumBorder
+import com.naylaaisyah.traveloapp.ui.theme.PlumInk
+import com.naylaaisyah.traveloapp.ui.theme.PlumMuted
+import com.naylaaisyah.traveloapp.ui.theme.Rosewood
+import com.naylaaisyah.traveloapp.ui.theme.SageDeep
+import com.naylaaisyah.traveloapp.ui.theme.SageTint
+import com.naylaaisyah.traveloapp.ui.theme.SurfaceWhite
+import com.naylaaisyah.traveloapp.ui.theme.TraveloSpacing
+import com.naylaaisyah.traveloapp.ui.theme.VanillaCream
+import com.naylaaisyah.traveloapp.ui.theme.WarningDeep
+import com.naylaaisyah.traveloapp.ui.theme.WarningTint
+import com.naylaaisyah.traveloapp.util.formatDisplayDate
 
-@OptIn(ExperimentalMaterial3Api::class)
+/**
+ * Booking list. Payment status always comes from the backend (kept current by
+ * the Midtrans webhook + verification on the payment screens). The list
+ * refreshes whenever it becomes visible, so a booking paid elsewhere turns
+ * Paid here without a manual step.
+ *
+ * Pay actions navigate to the dedicated Payment screen — checking status is
+ * not a normal step for the user.
+ */
+@OptIn(ExperimentalMaterialApi::class)
 @Composable
 fun MyBookingsScreen(
     onBackClick: () -> Unit,
+    onPayBooking: (Int) -> Unit = {},
     viewModel: MyBookingsViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
-    val context = LocalContext.current
-
-    val paymentLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        when (result.resultCode) {
-            PaymentWebViewActivity.RESULT_PAYMENT_SUCCESS -> {
-                viewModel.onPaymentSuccess()
-            }
-            PaymentWebViewActivity.RESULT_PAYMENT_PENDING -> {
-                viewModel.onPaymentPending()
-            }
-            PaymentWebViewActivity.RESULT_PAYMENT_CANCELLED,
-            Activity.RESULT_CANCELED -> {
-                viewModel.onPaymentCancelled()
-            }
-            else -> {
-                viewModel.onPaymentResult()
-            }
-        }
-    }
-
-    LaunchedEffect(Unit) {
-        viewModel.loadBookings()
-    }
+    val isRefreshing = uiState.isLoading && uiState.bookings.isNotEmpty()
+    val pullRefreshState = rememberPullRefreshState(
+        refreshing = isRefreshing,
+        onRefresh = { viewModel.loadBookings() }
+    )
 
     val lifecycleOwner = LocalLifecycleOwner.current
     LaunchedEffect(lifecycleOwner) {
         lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
             viewModel.loadBookings()
-        }
-    }
-
-    LaunchedEffect(uiState.snapTokenToLaunch) {
-        val snapToken = uiState.snapTokenToLaunch ?: return@LaunchedEffect
-        val intent = Intent(
-            context,
-            PaymentWebViewActivity::class.java
-        ).apply {
-            putExtra(PaymentWebViewActivity.EXTRA_SNAP_TOKEN, snapToken)
-            putExtra(PaymentWebViewActivity.EXTRA_IS_SANDBOX, true)
-        }
-        paymentLauncher.launch(intent)
-        viewModel.onPaymentLaunchConsumed()
-    }
-
-    LaunchedEffect(uiState.paymentMessage) {
-        uiState.paymentMessage?.let { message ->
-            if (!message.contains("success", ignoreCase = true)) {
-                snackbarHostState.showSnackbar(message)
-                viewModel.clearMessage()
-            }
         }
     }
 
@@ -149,37 +125,59 @@ fun MyBookingsScreen(
         }
     }
 
-    if (uiState.showPaymentSuccessDialog) {
-        PaymentSuccessDialog(
-            onDismiss = { viewModel.dismissPaymentDialog() }
-        )
+    val ticketErrorMessage = uiState.ticketError
+        ?: uiState.ticketErrorRes?.let { stringResource(it) }
+
+    LaunchedEffect(ticketErrorMessage) {
+        ticketErrorMessage?.let { message ->
+            snackbarHostState.showSnackbar(message)
+            viewModel.clearTicketError()
+        }
     }
 
     Scaffold(
         topBar = {
             TraveloTopBar(
-                title = "My Bookings",
+                title = "My bookings",
                 onBackClick = onBackClick,
                 actions = {
                     IconButton(onClick = { viewModel.loadBookings() }) {
                         Icon(
                             imageVector = Icons.Default.Refresh,
-                            contentDescription = "Refresh",
-                            tint = Primary
+                            contentDescription = "Refresh bookings",
+                            tint = Rosewood
                         )
                     }
                 }
             )
         },
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
-        containerColor = Background
+        containerColor = VanillaCream
     ) { paddingValues ->
         when {
-            uiState.isLoading && uiState.bookings.isEmpty() -> LoadingIndicator()
-            uiState.error != null && uiState.bookings.isEmpty() -> ErrorMessage(
-                message = uiState.error!!,
-                onRetry = { viewModel.loadBookings() }
-            )
+            uiState.isLoading && uiState.bookings.isEmpty() -> {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(paddingValues)
+                        .padding(horizontal = TraveloSpacing.screen)
+                ) {
+                    TraveloLoadingState()
+                }
+            }
+
+            uiState.error != null && uiState.bookings.isEmpty() -> {
+                TraveloErrorState(
+                    message = uiState.error.orEmpty(),
+                    onRetry = { viewModel.loadBookings() },
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(paddingValues),
+                    title = "Couldn't load your bookings",
+                    horizontalPadding = TraveloSpacing.screen
+                )
+            }
+
             uiState.bookings.isEmpty() -> {
                 Box(
                     modifier = Modifier
@@ -187,347 +185,339 @@ fun MyBookingsScreen(
                         .padding(paddingValues),
                     contentAlignment = Alignment.Center
                 ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.ReceiptLong,
-                            contentDescription = "No Bookings",
-                            tint = Gray400,
-                            modifier = Modifier.size(64.dp)
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(
-                            text = "No bookings yet",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = Gray600
-                        )
-                        Text(
-                            text = "Your booking history will appear here",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = Gray500
-                        )
-                    }
+                    TraveloEmptyState(
+                        title = "No bookings yet",
+                        message = "Your bookings will appear here after you book a tour package.",
+                        icon = Icons.Default.ReceiptLong,
+                        modifier = Modifier.padding(horizontal = TraveloSpacing.screen)
+                    )
                 }
             }
+
             else -> {
-                LazyColumn(
+                Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(paddingValues),
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                        .padding(paddingValues)
+                        .pullRefresh(pullRefreshState)
                 ) {
-                    items(uiState.bookings) { booking ->
-                        BookingCard(
-                            booking = booking,
-                            isProcessingPayment = uiState.payingBookingId == booking.id,
-                            onPayNowClick = {
-                                viewModel.startPendingPayment(booking)
-                            }
-                        )
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(
+                            horizontal = TraveloSpacing.screen,
+                            vertical = TraveloSpacing.sm
+                        ),
+                        verticalArrangement = Arrangement.spacedBy(TraveloSpacing.sm)
+                    ) {
+                        items(uiState.bookings, key = { it.id }) { booking ->
+                            BookingCard(
+                                booking = booking,
+                                onPayNowClick = { onPayBooking(booking.id) },
+                                onViewTicket = { viewModel.loadTicket(booking.id) }
+                            )
+                        }
                     }
+
+                    PullRefreshIndicator(
+                        refreshing = isRefreshing,
+                        state = pullRefreshState,
+                        modifier = Modifier.align(Alignment.TopCenter),
+                        backgroundColor = SurfaceWhite,
+                        contentColor = Rosewood
+                    )
                 }
             }
         }
     }
+
+    uiState.ticketLoadingFor?.let {
+        // The request is short; keep the dialog non-dismissible so a late
+        // response cannot reopen a ticket after the user closed the screen.
+        ETicketLoadingDialog(onDismiss = {})
+    }
+
+    uiState.ticket?.let { ticket ->
+        uiState.bookings.firstOrNull { it.id == ticket.bookingId }?.let { booking ->
+            ETicketDialog(
+                booking = booking,
+                ticket = ticket,
+                onDismiss = viewModel::clearTicket
+            )
+        }
+    }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun BookingCard(
     booking: Booking,
-    isProcessingPayment: Boolean,
-    onPayNowClick: () -> Unit
+    onPayNowClick: () -> Unit,
+    onViewTicket: () -> Unit
 ) {
-    val paymentStatus = booking.payment?.status?.lowercase()
-    val isPendingPayment = booking.status.lowercase() == "pending" &&
-        (paymentStatus == null || paymentStatus == "pending")
+    val outcome = booking.paymentOutcome()
+    val needsPayment = outcome == PaymentOutcome.WAITING ||
+        outcome == PaymentOutcome.FAILED ||
+        outcome == PaymentOutcome.EXPIRED ||
+        outcome == PaymentOutcome.CANCELLED
 
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp)
+    TraveloCard {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(TraveloSpacing.xs),
+            verticalAlignment = Alignment.Top
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = "Booking #${booking.id}",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
+                    style = MaterialTheme.typography.labelMedium,
+                    color = PlumMuted
                 )
-                BookingStatusChip(status = booking.status)
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            booking.tourPackage?.let { tourPackage ->
+                Spacer(Modifier.height(2.dp))
                 Text(
-                    text = tourPackage.safeTitle,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Medium
+                    text = booking.tourPackage?.safeTitle ?: "Tour package",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = PlumInk,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.CalendarMonth,
-                        contentDescription = "Date",
-                        tint = Gray500,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = booking.bookingDate,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Gray600
-                    )
-                }
-
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.People,
-                        contentDescription = "People",
-                        tint = Gray500,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = "${booking.peopleCount} people",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Gray600
-                    )
-                }
-            }
-
-            Divider(modifier = Modifier.padding(vertical = 8.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Total: Rp ${String.format("%,.0f", booking.totalPrice)}",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = Primary
-                )
-
-                PaymentStatusChip(status = paymentStatus)
-            }
-
-            if (isPendingPayment) {
-                Spacer(modifier = Modifier.height(12.dp))
-                PendingPaymentCallout(
-                    isProcessingPayment = isProcessingPayment,
-                    onPayNowClick = onPayNowClick
-                )
-            }
+            PaymentStatusChip(outcome = outcome)
         }
-    }
-}
 
-@Composable
-private fun PendingPaymentCallout(
-    isProcessingPayment: Boolean,
-    onPayNowClick: () -> Unit
-) {
-    Surface(
-        shape = RoundedCornerShape(14.dp),
-        color = Warning.copy(alpha = 0.12f),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(
-            modifier = Modifier.padding(14.dp)
+        Spacer(Modifier.height(TraveloSpacing.sm))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(TraveloSpacing.md),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
-                verticalAlignment = Alignment.Top
-            ) {
-                Icon(
-                    imageVector = Icons.Default.WarningAmber,
-                    contentDescription = "Pending payment",
-                    tint = Warning,
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "Payment pending",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = Gray700
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "Complete your payment now to confirm this booking.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Gray600
-                    )
+            BookingMeta(
+                icon = Icons.Default.CalendarMonth,
+                text = formatDisplayDate(booking.bookingDate)
+            )
+            BookingMeta(
+                icon = Icons.Default.People,
+                text = if (booking.peopleCount == 1) {
+                    "1 traveler"
+                } else {
+                    "${booking.peopleCount} travelers"
                 }
-            }
+            )
+        }
 
-            Spacer(modifier = Modifier.height(12.dp))
+        Divider(
+            modifier = Modifier.padding(vertical = TraveloSpacing.sm),
+            color = PlumBorder
+        )
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                TextButton(onClick = onPayNowClick, enabled = !isProcessingPayment) {
-                    Icon(
-                        imageVector = Icons.Default.Payments,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(text = "Pay now")
-                }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.Bottom
+        ) {
+            Text(
+                text = "Total",
+                style = MaterialTheme.typography.bodySmall,
+                color = PlumMuted
+            )
+            TraveloPriceText(
+                amount = booking.totalPrice,
+                compact = true
+            )
+        }
 
-                if (isProcessingPayment) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(18.dp),
-                            strokeWidth = 2.dp,
-                            color = Primary
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Opening payment...",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Gray600
-                        )
-                    }
-                }
-            }
+        if (outcome == PaymentOutcome.SUCCESS) {
+            Spacer(Modifier.height(TraveloSpacing.sm))
+            TraveloButton(
+                text = stringResource(R.string.eticket_view),
+                onClick = onViewTicket,
+                variant = TraveloButtonVariant.Secondary,
+                size = TraveloButtonSize.Medium,
+                leadingIcon = Icons.Default.ConfirmationNumber
+            )
+        }
+
+        if (needsPayment) {
+            Spacer(Modifier.height(TraveloSpacing.sm))
+            PaymentActionCallout(
+                outcome = outcome,
+                onPayNowClick = onPayNowClick
+            )
         }
     }
 }
 
 @Composable
-private fun BookingStatusChip(status: String?) {
-    val (backgroundColor, textColor) = when (status?.lowercase()) {
-        "confirmed", "completed" -> Success.copy(alpha = 0.1f) to Success
-        "pending" -> Warning.copy(alpha = 0.1f) to Warning
-        "cancelled" -> Error.copy(alpha = 0.1f) to Error
-        else -> Gray200 to Gray700
-    }
-
-    Surface(
-        shape = RoundedCornerShape(8.dp),
-        color = backgroundColor
-    ) {
-        Text(
-            text = status?.replaceFirstChar { it.uppercase() } ?: "Unknown",
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.Medium,
-            color = textColor,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-        )
-    }
-}
-
-@Composable
-private fun PaymentStatusChip(status: String?) {
-    val (backgroundColor, textColor, icon) = when (status?.lowercase()) {
-        "paid", "settlement", "success" -> Triple(Success.copy(alpha = 0.1f), Success, Icons.Default.CheckCircle)
-        "pending", "capture" -> Triple(Warning.copy(alpha = 0.1f), Warning, Icons.Default.Pending)
-        "expired", "deny", "cancel", "failed" -> Triple(Error.copy(alpha = 0.1f), Error, Icons.Default.HourglassEmpty)
-        else -> Triple(Gray200, Gray700, Icons.Default.HourglassEmpty)
-    }
-
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
-            .background(backgroundColor, RoundedCornerShape(8.dp))
-            .padding(horizontal = 8.dp, vertical = 4.dp)
-    ) {
+private fun BookingMeta(icon: ImageVector, text: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
         Icon(
             imageVector = icon,
-            contentDescription = status,
-            tint = textColor,
-            modifier = Modifier.size(14.dp)
+            contentDescription = null,
+            tint = PlumMuted,
+            modifier = Modifier.size(16.dp)
         )
-        Spacer(modifier = Modifier.width(4.dp))
+        Spacer(Modifier.width(4.dp))
         Text(
-            text = (status ?: "pending").replaceFirstChar { it.uppercase() },
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.Medium,
-            color = textColor
+            text = text,
+            style = MaterialTheme.typography.bodySmall,
+            color = PlumMuted
         )
     }
 }
 
+@Composable
+private fun PaymentActionCallout(
+    outcome: PaymentOutcome,
+    onPayNowClick: () -> Unit
+) {
+    val (title, subtitle, buttonText) = when (outcome) {
+        PaymentOutcome.WAITING -> Triple(
+            "Payment pending",
+            "Complete your payment to confirm this booking.",
+            "Pay now"
+        )
+
+        PaymentOutcome.EXPIRED -> Triple(
+            "Payment expired",
+            "Start a new payment to confirm this booking.",
+            "Pay again"
+        )
+
+        PaymentOutcome.CANCELLED -> Triple(
+            "Payment cancelled",
+            "Start a new payment to confirm this booking.",
+            "Pay again"
+        )
+
+        else -> Triple(
+            "Payment failed",
+            "Try again to confirm this booking.",
+            "Try again"
+        )
+    }
+
+    val accent = if (outcome == PaymentOutcome.FAILED || outcome == PaymentOutcome.CANCELLED) {
+        DangerDeep
+    } else {
+        WarningDeep
+    }
+    val background = if (outcome == PaymentOutcome.FAILED || outcome == PaymentOutcome.CANCELLED) {
+        DangerTint
+    } else {
+        WarningTint
+    }
+    val icon = if (outcome == PaymentOutcome.EXPIRED) {
+        Icons.Default.Schedule
+    } else {
+        Icons.Default.ErrorOutline
+    }
+
+    androidx.compose.material3.Surface(
+        shape = MaterialTheme.shapes.medium,
+        color = background,
+        border = BorderStroke(1.dp, accent.copy(alpha = 0.15f)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(TraveloSpacing.sm)) {
+            Row(verticalAlignment = Alignment.Top) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = accent,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(Modifier.width(TraveloSpacing.xs))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleSmall,
+                        color = PlumInk
+                    )
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = PlumMuted
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(TraveloSpacing.sm))
+
+            TraveloButton(
+                text = buttonText,
+                onClick = onPayNowClick,
+                variant = TraveloButtonVariant.Secondary,
+                size = TraveloButtonSize.Medium,
+                leadingIcon = Icons.Default.Payments
+            )
+        }
+    }
+}
 
 @Composable
-private fun PaymentSuccessDialog(
-    onDismiss: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Row(
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = Icons.Default.CheckCircle,
-                    contentDescription = "Success",
-                    tint = Success,
-                    modifier = Modifier.size(28.dp)
-                )
-                Spacer(modifier = Modifier.width(12.dp))
-                Text(
-                    text = "Payment Successful!",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-        },
-        text = {
-            Column {
-                Text(
-                    text = "Your payment has been processed successfully.",
-                    style = MaterialTheme.typography.bodyMedium
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "Your booking status is being updated.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Gray600
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = onDismiss,
-                modifier = Modifier
-                    .background(Success, RoundedCornerShape(8.dp))
-                    .padding(horizontal = 12.dp, vertical = 8.dp)
-            ) {
-                Text(
-                    text = "Back to Bookings",
-                    color = androidx.compose.ui.graphics.Color.White,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-        },
-        containerColor = Surface,
-        textContentColor = Gray700,
-        shape = RoundedCornerShape(16.dp)
-    )
+private fun PaymentStatusChip(outcome: PaymentOutcome) {
+    val label: String
+    val tint: Color
+    val background: Color
+    val icon: ImageVector
+
+    when (outcome) {
+        PaymentOutcome.SUCCESS -> {
+            label = "Paid"
+            tint = SageDeep
+            background = SageTint
+            icon = Icons.Default.CheckCircle
+        }
+
+        PaymentOutcome.WAITING -> {
+            label = "Pending"
+            tint = WarningDeep
+            background = WarningTint
+            icon = Icons.Default.HourglassEmpty
+        }
+
+        PaymentOutcome.FAILED -> {
+            label = "Failed"
+            tint = DangerDeep
+            background = DangerTint
+            icon = Icons.Default.ErrorOutline
+        }
+
+        PaymentOutcome.EXPIRED -> {
+            label = "Expired"
+            tint = WarningDeep
+            background = WarningTint
+            icon = Icons.Default.Schedule
+        }
+
+        PaymentOutcome.CANCELLED -> {
+            label = "Cancelled"
+            tint = DangerDeep
+            background = DangerTint
+            icon = Icons.Default.Cancel
+        }
+    }
+
+    androidx.compose.material3.Surface(
+        shape = PillShape,
+        color = background
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = TraveloSpacing.xs, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = tint,
+                modifier = Modifier.size(14.dp)
+            )
+            Spacer(Modifier.width(4.dp))
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                color = tint
+            )
+        }
+    }
 }

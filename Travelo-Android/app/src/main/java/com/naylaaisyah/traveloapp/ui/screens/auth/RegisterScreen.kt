@@ -4,34 +4,59 @@ import android.app.Activity
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.outlined.Email
+import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.VpnKey
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import coil.compose.rememberAsyncImagePainter
-import com.naylaaisyah.traveloapp.ui.theme.Primary
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.common.api.ApiException
 import com.google.android.gms.common.api.CommonStatusCodes
+import com.naylaaisyah.traveloapp.ui.theme.Gray400
+import com.naylaaisyah.traveloapp.ui.theme.PlumMuted
+import com.naylaaisyah.traveloapp.ui.theme.Rosewood
+import com.naylaaisyah.traveloapp.ui.theme.TraveloSpacing
 
 @Composable
 fun RegisterScreen(
@@ -49,12 +74,21 @@ fun RegisterScreen(
     var confirmPasswordVisible by remember { mutableStateOf(false) }
     var termsAccepted by remember { mutableStateOf(false) }
 
-    // Google Sign-In Launcher
+    val emailFocus = remember { FocusRequester() }
+    val passwordFocus = remember { FocusRequester() }
+    val confirmPasswordFocus = remember { FocusRequester() }
+    val keyboard = LocalSoftwareKeyboardController.current
+    val error = authState.error
+
+    // Inline validation mirrors the backend rules (min 8 characters, confirmed).
+    val passwordTooShort = password.isNotEmpty() && password.length < 8
+    val passwordsMismatch = confirmPassword.isNotEmpty() && password != confirmPassword
+
     val googleSignInLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
         Log.d("GoogleSignIn", "RegisterScreen: GoogleSignIn result code: ${result.resultCode}")
-        
+
         if (result.resultCode == Activity.RESULT_OK) {
             val data = result.data
             if (data != null) {
@@ -71,22 +105,21 @@ fun RegisterScreen(
                 } catch (e: ApiException) {
                     Log.e("GoogleSignIn", "RegisterScreen: ApiException - ${e.statusCode}", e)
                     val errorMessage = when (e.statusCode) {
-                        CommonStatusCodes.CANCELED -> "Emulator or device doesn't have a Google account configured. Please add a Google account in Settings → Accounts → Add account → Google, or sign up with Email/Password below."
+                        CommonStatusCodes.CANCELED -> "No Google account found on this device. Add one in Settings, or sign up with email below."
                         CommonStatusCodes.NETWORK_ERROR -> "Network error. Please check your connection."
                         CommonStatusCodes.SIGN_IN_REQUIRED -> "Please sign in with Google"
-                        CommonStatusCodes.DEVELOPER_ERROR -> "Google sign in developer error. Check SHA fingerprint and OAuth client configuration."
+                        CommonStatusCodes.DEVELOPER_ERROR -> "Google sign in is not configured correctly. Try email sign up instead."
                         CommonStatusCodes.INVALID_ACCOUNT -> "Selected Google account is invalid."
-                        else -> "Google sign in failed (${e.statusCode}): ${e.localizedMessage} - Try Email/Password signup instead."
+                        else -> "Google sign in failed (${e.statusCode}). Try email sign up instead."
                     }
                     viewModel.handleGoogleSignInError(errorMessage)
                 } catch (e: Exception) {
                     Log.e("GoogleSignIn", "RegisterScreen: Exception - ${e.message}", e)
-                    viewModel.handleGoogleSignInError("An error occurred: ${e.message}. Try Email/Password signup instead.")
+                    viewModel.handleGoogleSignInError("An error occurred. Try email sign up instead.")
                 }
             }
         } else {
-            Log.w("GoogleSignIn", "RegisterScreen: Sign in cancelled with result code: ${result.resultCode}")
-            viewModel.handleGoogleSignInError("Sign up was cancelled. Use Email/Password signup instead or add a Google account to your device.")
+            Log.w("GoogleSignIn", "RegisterScreen: Sign up cancelled with result code: ${result.resultCode}")
         }
     }
 
@@ -96,568 +129,235 @@ fun RegisterScreen(
         }
     }
 
-    Box(
+    fun submit() {
+        keyboard?.hide()
+        when {
+            !termsAccepted -> viewModel.setError("Please accept the terms and conditions")
+            password.length < 8 -> viewModel.setError("Password must be at least 8 characters")
+            password != confirmPassword -> viewModel.setError("Passwords do not match")
+            else -> viewModel.register(email, password)
+        }
+    }
+
+    fun googleSignIn() {
+        val googleSignInClient = viewModel.getGoogleSignInClient()
+        googleSignInClient.signOut().addOnCompleteListener {
+            googleSignInLauncher.launch(googleSignInClient.signInIntent)
+        }
+    }
+
+    // Step 2 of registration: verify the emailed code before entering the app.
+    if (authState.otpPending) {
+        OtpVerification(
+            maskedEmail = authState.otpEmail.orEmpty(),
+            resendAfter = authState.otpResendAfter,
+            isVerifying = authState.otpVerifying,
+            isResending = authState.otpSending,
+            error = error,
+            onVerify = { viewModel.verifyOtp(it) },
+            onResend = { viewModel.resendOtp() },
+            onBack = { viewModel.cancelOtp() },
+            onDismissError = { viewModel.clearError() }
+        )
+        return
+    }
+
+    Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFFF6F6F8))
+            .background(MaterialTheme.colorScheme.background)
+            .verticalScroll(rememberScrollState())
+            .imePadding()
     ) {
+        AuthBrandBar(onBackClick = onNavigateToLogin)
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        AuthHeader(
+            eyebrow = "Travelo account",
+            title = "Create your account",
+            subtitle = "One account for every trip you plan, book and remember."
+        )
+
         Column(
             modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState()),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .fillMaxWidth()
+                .padding(horizontal = TraveloSpacing.screen)
         ) {
-            // Back Button
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                horizontalArrangement = Arrangement.Start
-            ) {
-                Surface(
-                    modifier = Modifier.size(40.dp),
-                    shape = RoundedCornerShape(50),
-                    color = Color.Transparent,
-                    onClick = onNavigateToLogin
-                ) {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "←",
-                            style = MaterialTheme.typography.titleLarge,
-                            color = Color(0xFF1E293B)
-                        )
-                    }
-                }
-            }
+            Spacer(modifier = Modifier.height(24.dp))
 
-            // Header Section
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp)
-                    .padding(top = 8.dp, bottom = 16.dp),
-                horizontalAlignment = Alignment.Start
-            ) {
-                Text(
-                    text = "Create Account",
-                    style = MaterialTheme.typography.headlineLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF1E293B)
-                )
+            AuthErrorBanner(error = error, onDismiss = { viewModel.clearError() })
+            if (error != null) Spacer(modifier = Modifier.height(16.dp))
 
-                Spacer(modifier = Modifier.height(8.dp))
+            AuthTextField(
+                value = fullName,
+                onValueChange = { fullName = it },
+                label = "Full name",
+                placeholder = "As written on your ID",
+                leadingIcon = Icons.Outlined.Person,
+                keyboardType = KeyboardType.Text,
+                imeAction = ImeAction.Next,
+                onImeAction = {
+                    keyboard?.show()
+                    emailFocus.requestFocus()
+                },
+                enabled = !authState.isLoading
+            )
 
-                Text(
-                    text = "Join our travel community and start your journey today.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Color(0xFF64748B),
-                    textAlign = TextAlign.Start
-                )
-            }
+            Spacer(modifier = Modifier.height(16.dp))
 
-            // Form Section
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp)
-                    .padding(vertical = 16.dp),
-                horizontalAlignment = Alignment.Start
-            ) {
-                // Full Name Field
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.Start
-                ) {
-                    Text(
-                        text = "Full Name",
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.SemiBold,
-                        color = Color(0xFF1E293B),
-                        modifier = Modifier.padding(start = 4.dp)
-                    )
+            AuthTextField(
+                value = email,
+                onValueChange = { email = it },
+                label = "Email",
+                placeholder = "name@example.com",
+                leadingIcon = Icons.Outlined.Email,
+                keyboardType = KeyboardType.Email,
+                imeAction = ImeAction.Next,
+                onImeAction = {
+                    keyboard?.show()
+                    passwordFocus.requestFocus()
+                },
+                enabled = !authState.isLoading,
+                modifier = Modifier.focusRequester(emailFocus)
+            )
 
-                    Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-                    OutlinedTextField(
-                        value = fullName,
-                        onValueChange = { fullName = it },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(56.dp),
-                        placeholder = {
-                            Text(
-                                text = "Enter your full name",
-                                color = Color(0xFF9CA3AF)
-                            )
-                        },
-                        leadingIcon = {
-                            Text(
-                                text = "👤",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = Color(0xFF9CA3AF)
-                            )
-                        },
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Text,
-                            imeAction = ImeAction.Next
-                        ),
-                        singleLine = true,
-                        shape = RoundedCornerShape(12.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Primary,
-                            unfocusedBorderColor = Color(0xFFE5E7EB),
-                            focusedLeadingIconColor = Primary,
-                            unfocusedLeadingIconColor = Color(0xFF9CA3AF),
-                            focusedPlaceholderColor = Color(0xFF9CA3AF),
-                            unfocusedPlaceholderColor = Color(0xFF9CA3AF)
-                        )
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(20.dp))
-
-                // Email Field
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.Start
-                ) {
-                    Text(
-                        text = "Email Address",
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.SemiBold,
-                        color = Color(0xFF1E293B),
-                        modifier = Modifier.padding(start = 4.dp)
-                    )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    OutlinedTextField(
-                        value = email,
-                        onValueChange = { email = it },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(56.dp),
-                        placeholder = {
-                            Text(
-                                text = "name@example.com",
-                                color = Color(0xFF9CA3AF)
-                            )
-                        },
-                        leadingIcon = {
-                            Text(
-                                text = "✉",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = Color(0xFF9CA3AF)
-                            )
-                        },
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Email,
-                            imeAction = ImeAction.Next
-                        ),
-                        singleLine = true,
-                        shape = RoundedCornerShape(12.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Primary,
-                            unfocusedBorderColor = Color(0xFFE5E7EB),
-                            focusedLeadingIconColor = Primary,
-                            unfocusedLeadingIconColor = Color(0xFF9CA3AF),
-                            focusedPlaceholderColor = Color(0xFF9CA3AF),
-                            unfocusedPlaceholderColor = Color(0xFF9CA3AF)
-                        )
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(20.dp))
-
-                // Password Field
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.Start
-                ) {
-                    Text(
-                        text = "Password",
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.SemiBold,
-                        color = Color(0xFF1E293B),
-                        modifier = Modifier.padding(start = 4.dp)
-                    )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    OutlinedTextField(
-                        value = password,
-                        onValueChange = { password = it },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(56.dp),
-                        placeholder = {
-                            Text(
-                                text = "••••••••",
-                                color = Color(0xFF9CA3AF)
-                            )
-                        },
-                        leadingIcon = {
-                            Text(
-                                text = "🔒",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = Color(0xFF9CA3AF)
-                            )
-                        },
-                        trailingIcon = {
-                            TextButton(
-                                onClick = { passwordVisible = !passwordVisible }
-                            ) {
-                                Text(
-                                    text = if (passwordVisible) "👁" else "👁",
-                                    style = MaterialTheme.typography.titleMedium
-                                )
-                            }
-                        },
-                        visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Password,
-                            imeAction = ImeAction.Next
-                        ),
-                        singleLine = true,
-                        shape = RoundedCornerShape(12.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Primary,
-                            unfocusedBorderColor = Color(0xFFE5E7EB),
-                            focusedLeadingIconColor = Primary,
-                            unfocusedLeadingIconColor = Color(0xFF9CA3AF)
-                        )
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(20.dp))
-
-                // Confirm Password Field
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.Start
-                ) {
-                    Text(
-                        text = "Confirm Password",
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.SemiBold,
-                        color = Color(0xFF1E293B),
-                        modifier = Modifier.padding(start = 4.dp)
-                    )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    OutlinedTextField(
-                        value = confirmPassword,
-                        onValueChange = { confirmPassword = it },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(56.dp),
-                        placeholder = {
-                            Text(
-                                text = "••••••••",
-                                color = Color(0xFF9CA3AF)
-                            )
-                        },
-                        leadingIcon = {
-                            Text(
-                                text = "🔑",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = Color(0xFF9CA3AF)
-                            )
-                        },
-                        visualTransformation = if (confirmPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Password,
-                            imeAction = ImeAction.Done
-                        ),
-                        singleLine = true,
-                        shape = RoundedCornerShape(12.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Primary,
-                            unfocusedBorderColor = Color(0xFFE5E7EB),
-                            focusedLeadingIconColor = Primary,
-                            unfocusedLeadingIconColor = Color(0xFF9CA3AF)
-                        )
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(24.dp))
-
-                // Terms Checkbox
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.Top
-                ) {
-                    Checkbox(
-                        checked = termsAccepted,
-                        onCheckedChange = { termsAccepted = it },
-                        colors = CheckboxDefaults.colors(
-                            checkedColor = Primary,
-                            uncheckedColor = Color(0xFFCBD5E1)
-                        )
-                    )
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column(
-                        modifier = Modifier.padding(top = 4.dp)
-                    ) {
-                        Text(
-                            text = "I agree to the ",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Color(0xFF64748B)
-                        )
-                        InlineTextLink(
-                            text = "Terms of Service",
-                            onClick = { /* Open Terms */ },
-                            style = MaterialTheme.typography.bodySmall,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Primary
-                        )
-                        Text(
-                            text = " and ",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Color(0xFF64748B)
-                        )
-                        InlineTextLink(
-                            text = "Privacy Policy",
-                            onClick = { /* Open Privacy Policy */ },
-                            style = MaterialTheme.typography.bodySmall,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Primary
-                        )
-                        Text(
-                            text = ".",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Color(0xFF64748B)
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(32.dp))
-
-                // Error Message
-                if (authState.error != null) {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(
-                            containerColor = Color(0xFFEF4444).copy(alpha = 0.1f)
-                        ),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Text(
-                            text = authState.error!!,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Color(0xFFEF4444),
-                            modifier = Modifier.padding(12.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(16.dp))
-                }
-
-                // Sign Up Button
-                Button(
-                    onClick = {
-                        if (termsAccepted) {
-                            if (password == confirmPassword) {
-                                viewModel.register(email, password)
+            AuthTextField(
+                value = password,
+                onValueChange = { password = it },
+                label = "Password",
+                placeholder = "At least 8 characters",
+                leadingIcon = Icons.Outlined.Lock,
+                keyboardType = KeyboardType.Password,
+                imeAction = ImeAction.Next,
+                onImeAction = {
+                    keyboard?.show()
+                    confirmPasswordFocus.requestFocus()
+                },
+                enabled = !authState.isLoading,
+                visualTransformation = if (passwordVisible) {
+                    VisualTransformation.None
+                } else {
+                    PasswordVisualTransformation()
+                },
+                trailingIcon = {
+                    IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                        Icon(
+                            imageVector = if (passwordVisible) {
+                                Icons.Filled.VisibilityOff
                             } else {
-                                viewModel.handleGoogleSignInError("Passwords do not match")
-                            }
-                        } else {
-                            viewModel.handleGoogleSignInError("Please accept the terms and conditions")
-                        }
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(64.dp),
-                    enabled = fullName.isNotBlank() && 
-                              email.isNotBlank() && 
-                              password.isNotBlank() && 
-                              confirmPassword.isNotBlank() && 
-                              termsAccepted && 
-                              !authState.isLoading,
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Primary,
-                        disabledContainerColor = Primary.copy(alpha = 0.5f)
-                    )
-                ) {
-                    if (authState.isLoading) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(24.dp),
-                            color = Color.White,
-                            strokeWidth = 2.dp
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                    } else {
-                        Text(
-                            text = "Sign Up",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "→",
-                            style = MaterialTheme.typography.titleMedium
+                                Icons.Filled.Visibility
+                            },
+                            contentDescription = if (passwordVisible) "Hide password" else "Show password",
+                            tint = Gray400
                         )
                     }
-                }
-            }
+                },
+                isError = passwordTooShort,
+                supportingText = if (passwordTooShort) "Use at least 8 characters" else null,
+                modifier = Modifier.focusRequester(passwordFocus)
+            )
 
-            // Already have account
+            Spacer(modifier = Modifier.height(16.dp))
+
+            AuthTextField(
+                value = confirmPassword,
+                onValueChange = { confirmPassword = it },
+                label = "Confirm password",
+                placeholder = "Re-enter your password",
+                leadingIcon = Icons.Outlined.VpnKey,
+                keyboardType = KeyboardType.Password,
+                imeAction = ImeAction.Done,
+                onImeAction = { submit() },
+                enabled = !authState.isLoading,
+                visualTransformation = if (confirmPasswordVisible) {
+                    VisualTransformation.None
+                } else {
+                    PasswordVisualTransformation()
+                },
+                trailingIcon = {
+                    IconButton(onClick = { confirmPasswordVisible = !confirmPasswordVisible }) {
+                        Icon(
+                            imageVector = if (confirmPasswordVisible) {
+                                Icons.Filled.VisibilityOff
+                            } else {
+                                Icons.Filled.Visibility
+                            },
+                            contentDescription = if (confirmPasswordVisible) "Hide password" else "Show password",
+                            tint = Gray400
+                        )
+                    }
+                },
+                isError = passwordsMismatch,
+                supportingText = if (passwordsMismatch) "Passwords do not match" else null,
+                modifier = Modifier.focusRequester(confirmPasswordFocus)
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 24.dp)
-                    .padding(vertical = 24.dp),
-                horizontalArrangement = Arrangement.Center
+                    .heightIn(min = 48.dp)
+                    .toggleable(
+                        value = termsAccepted,
+                        enabled = !authState.isLoading,
+                        role = Role.Checkbox,
+                        onValueChange = { termsAccepted = it }
+                    ),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "Already have an account?",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Color(0xFF64748B)
+                Checkbox(
+                    checked = termsAccepted,
+                    onCheckedChange = null,
+                    colors = CheckboxDefaults.colors(
+                        checkedColor = Rosewood,
+                        uncheckedColor = Gray400
+                    )
                 )
-                TextButton(
-                    onClick = onNavigateToLogin
-                ) {
-                    Text(
-                        text = "Sign In",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = Primary
-                    )
-                }
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "I agree to Travelo's terms of service and privacy policy.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = PlumMuted,
+                    modifier = Modifier.weight(1f)
+                )
             }
 
-            // Or register with section
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp)
-                    .padding(bottom = 40.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                // Divider with text
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Divider(
-                        modifier = Modifier.weight(1f),
-                        color = Color(0xFFE5E7EB)
-                    )
-                    Text(
-                        text = "or register with",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Color(0xFF94A3B8),
-                        modifier = Modifier.padding(horizontal = 16.dp)
-                    )
-                    Divider(
-                        modifier = Modifier.weight(1f),
-                        color = Color(0xFFE5E7EB)
-                    )
-                }
+            Spacer(modifier = Modifier.height(20.dp))
 
-                Spacer(modifier = Modifier.height(24.dp))
+            AuthPrimaryButton(
+                text = "Create account",
+                onClick = { submit() },
+                enabled = fullName.isNotBlank() &&
+                    email.isNotBlank() &&
+                    password.isNotBlank() &&
+                    confirmPassword.isNotBlank() &&
+                    termsAccepted &&
+                    !passwordTooShort &&
+                    !passwordsMismatch,
+                isLoading = authState.isLoading
+            )
 
-                // Google and Apple buttons
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    // Google Button
-                    OutlinedButton(
-                        onClick = {
-                            val googleSignInClient = viewModel.getGoogleSignInClient()
-                            googleSignInClient.signOut().addOnCompleteListener {
-                                val signInIntent = googleSignInClient.signInIntent
-                                googleSignInLauncher.launch(signInIntent)
-                            }
-                        },
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(48.dp),
-                        enabled = !authState.isLoading,
-                        shape = RoundedCornerShape(12.dp),
-                        border = BorderStroke(1.dp, Color(0xFFE5E7EB)),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            containerColor = Color.White,
-                            contentColor = Color(0xFF1E293B)
-                        )
-                    ) {
-                        Row(
-                            horizontalArrangement = Arrangement.Center,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            // Google G Icon
-                            Text(
-                                text = "G",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF4285F4)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "Google",
-                                style = MaterialTheme.typography.labelLarge,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        }
-                    }
+            Spacer(modifier = Modifier.height(22.dp))
 
-                    // Apple Button
-                    OutlinedButton(
-                        onClick = { /* Apple Sign In */ },
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(48.dp),
-                        enabled = !authState.isLoading,
-                        shape = RoundedCornerShape(12.dp),
-                        border = BorderStroke(1.dp, Color(0xFFE5E7EB)),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            containerColor = Color.White,
-                            contentColor = Color(0xFF1E293B)
-                        )
-                    ) {
-                        Row(
-                            horizontalArrangement = Arrangement.Center,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            // Apple Icon (using text approximation)
-                            Text(
-                                text = "🍎",
-                                style = MaterialTheme.typography.titleMedium
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "Apple",
-                                style = MaterialTheme.typography.labelLarge,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        }
-                    }
-                }
-            }
+            AuthDivider("or continue with")
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            GoogleAuthButton(onClick = { googleSignIn() }, enabled = !authState.isLoading)
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            AuthFooterLink(
+                prompt = "Already have an account?",
+                actionLabel = "Sign in",
+                onClick = onNavigateToLogin
+            )
+
+            Spacer(modifier = Modifier.height(32.dp))
         }
     }
 }
-
-@Composable
-fun InlineTextLink(
-    text: String,
-    onClick: () -> Unit,
-    style: androidx.compose.ui.text.TextStyle,
-    fontWeight: FontWeight,
-    color: Color
-) {
-    Text(
-        text = text,
-        style = style,
-        fontWeight = fontWeight,
-        color = color,
-        modifier = Modifier
-    )
-}
-

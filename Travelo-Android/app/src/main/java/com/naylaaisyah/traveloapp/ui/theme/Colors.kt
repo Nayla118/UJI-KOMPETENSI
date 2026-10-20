@@ -2,30 +2,79 @@ package com.naylaaisyah.traveloapp.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-val Primary = Color(0xFF6C63FF)
-val PrimaryLight = Color(0xFFB7B2FF)
-val PrimaryDark = Color(0xFF4B44C9)
-val Secondary = Color(0xFF725B2F)
-val SecondaryLight = Color(0xFFC8B37D)
-val SecondaryDark = Color(0xFF4E3D1E)
-val Info = Color(0xFF536B6B)
-val Background = Color(0xFFF7F7FB)
-val OnBackground = Color(0xFF1F1F27)
-val Surface = Color(0xFFFFFFFF)
-val OnSurface = Color(0xFF1F1F27)
-val SurfaceVariant = Color(0xFFE7E6F3)
-val OnSurfaceVariant = Color(0xFF4F4F5A)
-val Error = Color(0xFFB3261E)
+// ─────────────────────────────────────────────────────────────
+//  Travelo "Cute & Dreamy" — Android design tokens
+//
+//  This file is the single source of truth for colour on Android.
+//  It mirrors the web tokens (resources/css/app.css) and the XML
+//  theme (res/values/colors.xml).
+//
+//  Contrast, measured against VanillaCream (#FFF9F7):
+//    Rosewood  #A95372  4.80:1  AA  → primary CTA, links, prices
+//    Plum Ink  #493747 10.40:1  AAA → body copy & headings
+//    PlumMuted #6E5A68  5.30:1  AA  → secondary copy
+//    SageDeep  #4F7D66  4.71:1  AA  → success text/icons
+//    CottonCandy #E9A0B8 1.96:1  ✗  → decorative fills only
+//    SageMint  #A9C9B7  1.79:1  ✗  → decorative fills only
+// ─────────────────────────────────────────────────────────────
+
+// Brand
+val Rosewood = Color(0xFFA95372)
+val RosewoodPressed = Color(0xFF8F4460)
+val CottonCandy = Color(0xFFE9A0B8)
+val BlushMist = Color(0xFFF9E7ED)
+val VanillaCream = Color(0xFFFFF9F7)
+val PlumInk = Color(0xFF493747)
+val SageMint = Color(0xFFA9C9B7)
+
+// Derived accessibility / state tokens
+val SageDeep = Color(0xFF4F7D66)
+val PlumMuted = Color(0xFF6E5A68)
+val PlumBorder = Color(0xFFE7D9DF)
+val DangerDeep = Color(0xFFB03A4E)
+val WarningDeep = Color(0xFF8F5F36)
+
+val SageTint = Color(0xFFE7F0EA)
+val DangerTint = Color(0xFFF7E3E7)
+val WarningTint = Color(0xFFF7E8D8)
+val RoseTint = Color(0xFFF6E9EE)
+
+val SurfaceWhite = Color(0xFFFFFFFF)
+
+// ─────────────────────────────────────────────────────────────
+//  Legacy aliases
+//  Kept so screens that have not been migrated yet keep compiling.
+//  New code must use the tokens above instead of these names.
+// ─────────────────────────────────────────────────────────────
+val Primary = Rosewood
+val PrimaryLight = BlushMist
+val PrimaryDark = RosewoodPressed
+val Secondary = CottonCandy
+val SecondaryLight = BlushMist
+val SecondaryDark = Rosewood
+val Info = SageDeep
+
+val Background = VanillaCream
+val OnBackground = PlumInk
+val Surface = SurfaceWhite
+val OnSurface = PlumInk
+val SurfaceVariant = BlushMist
+val OnSurfaceVariant = PlumMuted
+val NavPink = BlushMist
+
+val Error = DangerDeep
 val OnPrimary = Color(0xFFFFFFFF)
-val OnSecondary = Color(0xFFFFFFFF)
-val Gray900 = Color(0xFF111827)
-val Gray800 = Color(0xFF1F2937)
-val Gray700 = Color(0xFF374151)
-val Gray600 = Color(0xFF4B5563)
-val Gray500 = Color(0xFF6B7280)
-val Gray400 = Color(0xFF9CA3AF)
-val Gray300 = Color(0xFFD1D5DB)
-val Gray200 = Color(0xFFE5E7EB)
-val Gray100 = Color(0xFFF3F4F6)
-val Success = Color(0xFF16A34A)
-val Warning = Color(0xFFF59E0B)
+val OnSecondary = PlumInk
+
+val Gray900 = PlumInk
+val Gray800 = Color(0xFF5A4755)
+val Gray700 = PlumMuted
+val Gray600 = Color(0xFF85717D)
+val Gray500 = Color(0xFF9C8894)
+val Gray400 = Color(0xFFB9A6B0)
+val Gray300 = Color(0xFFD9C8D0)
+val Gray200 = Color(0xFFEBDDE2)
+val Gray100 = Color(0xFFF7F0F2)
+
+val Success = SageDeep
+val Warning = WarningDeep

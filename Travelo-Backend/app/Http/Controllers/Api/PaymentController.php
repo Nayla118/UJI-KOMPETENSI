@@ -27,12 +27,14 @@ class PaymentController extends Controller
      */
     public function getStatus(Request $request, int $bookingId): JsonResponse
     {
-        try {
-            $booking = $request->user()
-                ->bookings()
-                ->with('payment')
-                ->findOrFail($bookingId);
+        // Ownership is enforced by the relationship; a foreign booking is a
+        // 404, never a 500 or a leak of another customer's payment state.
+        $booking = $request->user()
+            ->bookings()
+            ->with('payment')
+            ->findOrFail($bookingId);
 
+        try {
             $payment = $booking->payment;
 
             $data = [
@@ -49,6 +51,8 @@ class PaymentController extends Controller
                     'id' => $payment->id,
                     'status' => $payment->payment_status,
                     'method' => $payment->payment_method,
+                    'channel' => $payment->payment_channel,
+                    'transaction_status' => $payment->transaction_status,
                     'amount' => (float) $payment->amount,
                     'midtrans_transaction_id' => $payment->midtrans_transaction_id,
                     'midtrans_order_id' => $payment->midtrans_order_id,
@@ -81,12 +85,12 @@ class PaymentController extends Controller
      */
     public function verifyAndSync(Request $request, int $bookingId): JsonResponse
     {
-        try {
-            $booking = $request->user()
-                ->bookings()
-                ->with('payment')
-                ->findOrFail($bookingId);
+        $booking = $request->user()
+            ->bookings()
+            ->with('payment')
+            ->findOrFail($bookingId);
 
+        try {
             $payment = $booking->payment;
 
             if (!$payment || !$payment->midtrans_order_id) {
@@ -178,7 +182,7 @@ class PaymentController extends Controller
                 
                 return response()->json([
                     'success' => false,
-                    'message' => 'Could not verify payment with Midtrans: ' . $e->getMessage(),
+                    'message' => 'Could not verify this payment with Midtrans. Please try again.',
                     'data' => [
                         'booking_id' => $booking->id,
                         'booking_status' => $booking->booking_status,
@@ -201,7 +205,7 @@ class PaymentController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Verification failed: ' . $e->getMessage(),
+                'message' => 'Payment verification failed. Please try again.',
             ], 500);
         }
     }
@@ -212,8 +216,14 @@ class PaymentController extends Controller
      */
     public function retrySync(Request $request, int $bookingId): JsonResponse
     {
+        // IDOR fix: only the owner may ask the server to reconcile a booking.
+        // Scoping through the relationship also returns 404 for foreign ids.
+        $booking = $request->user()
+            ->bookings()
+            ->with('payment')
+            ->findOrFail($bookingId);
+
         try {
-            $booking = Booking::findOrFail($bookingId);
             $payment = $booking->payment;
 
             if (!$payment) {
@@ -264,10 +274,17 @@ class PaymentController extends Controller
                 }
             }
 
+            if ($lastError !== null) {
+                Log::warning('Payment retry exhausted attempts', [
+                    'booking_id' => $booking->id,
+                    'error' => $lastError,
+                ]);
+            }
+
             return response()->json([
                 'success' => false,
-                'message' => 'Could not sync payment after multiple attempts: ' . $lastError,
-            ], 500);
+                'message' => 'Payment status could not be synchronized. Please try again later.',
+            ], 503);
         } catch (\Exception $e) {
             Log::error('Payment retry failed', [
                 'booking_id' => $bookingId,
@@ -276,20 +293,24 @@ class PaymentController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Retry failed: ' . $e->getMessage(),
+                'message' => 'Payment synchronization failed. Please try again.',
             ], 500);
         }
     }
 
     /**
-     * Manually mark a payment as paid (ADMIN ONLY - for emergency use)
-     * Should only be used if payment was confirmed outside normal flow
+     * Confirm a payment ONLY after Midtrans verification.
+     * Previously this endpoint marked any booking paid without checking
+     * Midtrans, which fakes success. Now it queries the Midtrans Status API
+     * across all order_ids for the booking and only marks paid when Midtrans
+     * actually reports settlement/capture(accept). Otherwise it syncs the
+     * real status (pending/failed/expired) and returns it.
      */
     public function markAsPaid(Request $request, int $bookingId): JsonResponse
     {
         // Verify user is owner of booking
-        $booking = Booking::findOrFail($bookingId);
-        
+        $booking = Booking::with('payment')->findOrFail($bookingId);
+
         if ($booking->user_id !== $request->user()->id) {
             return response()->json([
                 'success' => false,
@@ -297,58 +318,95 @@ class PaymentController extends Controller
             ], 403);
         }
 
-        DB::beginTransaction();
+        $payment = $booking->payment;
 
-        try {
-            $payment = $booking->payment;
+        if (!$payment || !$payment->midtrans_order_id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No payment record found',
+            ], 404);
+        }
 
-            if (!$payment) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'No payment record found',
-                ], 404);
-            }
-
-            // Update payment
-            $payment->update([
-                'payment_status' => 'paid',
-                'paid_at' => now(),
-                'payment_method' => $payment->payment_method ?? 'manual_confirmation',
-            ]);
-
-            // Update booking
-            $booking->update([
-                'payment_status' => 'paid',
-                'booking_status' => 'confirmed',
-            ]);
-
-            DB::commit();
-
-            Log::warning('Payment manually marked as paid', [
-                'booking_id' => $booking->id,
-                'user_id' => $request->user()->id,
-            ]);
-
+        // Already paid: nothing to do.
+        if ($payment->payment_status === 'paid' && $payment->paid_at) {
             return response()->json([
                 'success' => true,
-                'message' => 'Payment marked as paid successfully',
+                'message' => 'Payment is already confirmed',
                 'data' => [
                     'booking_status' => $booking->booking_status,
                     'payment_status' => $booking->payment_status,
                 ],
             ]);
+        }
+
+        // Verify with Midtrans before touching the database.
+        try {
+            $transactionData = $this->midtransService->verifyBookingAcrossOrders($booking);
+        } catch (\Exception $e) {
+            Log::warning('mark-as-paid verification failed', [
+                'booking_id' => $booking->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Payment could not be confirmed by Midtrans. Please try again.',
+            ], 502);
+        }
+
+        if (empty($transactionData['raw'])) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Payment not confirmed by Midtrans',
+            ], 502);
+        }
+
+        DB::beginTransaction();
+
+        try {
+            $result = $this->midtransService->syncBookingPaymentStatus(
+                $booking,
+                $transactionData['raw']
+            );
+
+            DB::commit();
         } catch (\Exception $e) {
             DB::rollBack();
 
-            Log::error('Failed to mark payment as paid', [
+            Log::error('Failed to sync payment on confirm', [
                 'booking_id' => $bookingId,
                 'error' => $e->getMessage(),
             ]);
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to mark payment: ' . $e->getMessage(),
+                'message' => 'Payment confirmation failed. Please try again.',
             ], 500);
         }
+
+        if (($result['payment_status'] ?? null) !== 'paid') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Payment not confirmed by Midtrans. Current status: ' . ($result['payment_status'] ?? 'unknown'),
+                'data' => [
+                    'booking_status' => $result['booking_status'],
+                    'payment_status' => $result['payment_status'],
+                ],
+            ], 409);
+        }
+
+        Log::info('Payment confirmed via Midtrans verification', [
+            'booking_id' => $booking->id,
+            'user_id' => $request->user()->id,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Payment confirmed by Midtrans',
+            'data' => [
+                'booking_status' => $result['booking_status'],
+                'payment_status' => $result['payment_status'],
+            ],
+        ]);
     }
 }

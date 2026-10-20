@@ -5,7 +5,13 @@ return [
 
     'projects' => [
         'app' => [
-            'credentials' => env('FIREBASE_CREDENTIALS', storage_path('app/firebase-auth.json')),
+            // Used for ID-token verification (issuer/audience checks). This is
+            // public project metadata, not a secret.
+            'project_id' => env('FIREBASE_PROJECT_ID', 'travelo-818bc'),
+
+            // An empty FIREBASE_CREDENTIALS= entry must not disable the
+            // default service-account file (env() returns "" for empty keys).
+            'credentials' => env('FIREBASE_CREDENTIALS') ?: storage_path('app/firebase-auth.json'),
 
             'auth' => [
                 'tenant_id' => env('FIREBASE_AUTH_TENANT_ID'),

@@ -2,130 +2,126 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Exceptions\InvalidFirebaseTokenException;
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Services\FirebaseAuthService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class AuthController extends Controller
 {
+    public function __construct(
+        protected FirebaseAuthService $firebase
+    ) {}
+
     /**
-     * Handle Firebase token verification and login/register
-     * Using manual token decode for faster authentication without Firebase SDK
+     * Verify a Firebase ID token and issue a Sanctum session.
+     *
+     * The token is verified server-side (signature, issuer, audience, expiry)
+     * before any claim is used. A new local user may only be provisioned by a
+     * provider that has proven ownership of the email address (Google or an
+     * already email-verified Firebase account). Email/password accounts must
+     * finish the OTP flow first, which creates the local user.
      */
     public function login(Request $request): JsonResponse
     {
-        // Debug: Log the request
-        Log::info('Login request received', ['has_token' => !empty($request->id_token)]);
-
         $request->validate([
             'id_token' => 'required|string',
         ]);
 
         try {
-            // Manual token decode - faster, doesn't require Firebase API call
-            // Firebase token is already validated on the client side
-            $tokenParts = explode('.', $request->id_token);
-            if (count($tokenParts) !== 3) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Invalid token format',
-                ], 400);
-            }
+            $identity = $this->firebase->verifyIdToken($request->id_token);
+        } catch (InvalidFirebaseTokenException $e) {
+            Log::notice('Rejected invalid Firebase ID token');
 
-            // Add padding if needed and decode
-            $payload = json_decode(base64_decode(strtr($tokenParts[1], '-_', '+/')), true);
-
-            if (!$payload || !isset($payload['sub'])) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Invalid token payload',
-                ], 401);
-            }
-
-            $firebaseUid = $payload['sub'];
-            $email = $payload['email'] ?? null;
-            $name = $payload['name'] ?? $payload['displayName'] ?? null;
-            $photoUrl = $payload['picture'] ?? null;
-
-            Log::info('Manual token decode successful', ['firebase_uid' => $firebaseUid, 'email' => $email]);
-
-            return $this->createOrUpdateUser($firebaseUid, $email, $name, $photoUrl);
-        } catch (\Exception $e) {
-            Log::error('Authentication failed', ['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
             return response()->json([
                 'success' => false,
-                'message' => 'Authentication failed: ' . $e->getMessage(),
-            ], 500);
-        }
-    }
+                'message' => 'Your sign-in session is invalid or has expired. Please sign in again.',
+            ], 401);
+        } catch (Throwable $e) {
+            Log::error('Firebase token verification unavailable', ['error' => $e->getMessage()]);
 
-    /**
-     * Create or update user in database
-     */
-    private function createOrUpdateUser(string $firebaseUid, ?string $email, ?string $name, ?string $photoUrl): JsonResponse
-    {
+            return response()->json([
+                'success' => false,
+                'message' => 'Sign-in is temporarily unavailable. Please try again.',
+            ], 503);
+        }
+
+        $email = $identity['email'];
+
         if (!$email) {
             return response()->json([
                 'success' => false,
-                'message' => 'Email is required from Firebase token',
+                'message' => 'This account has no email address.',
             ], 400);
         }
 
-        // Find or create user
-        $user = User::where('firebase_uid', $firebaseUid)->first();
+        $existingByUid = User::where('firebase_uid', $identity['uid'])->first();
+        $existingByEmail = User::where('email', $email)->first();
 
-        if (!$user) {
-            $user = User::where('email', $email)->first();
-
-            if ($user) {
-                // Update existing user with firebase_uid
-                $user->update([
-                    'firebase_uid' => $firebaseUid,
-                    'photo' => $photoUrl ?? $user->photo,
-                ]);
-                Log::info('Updated existing user with firebase_uid', ['user_id' => $user->id, 'firebase_uid' => $firebaseUid]);
-            } else {
-                // Create new user
-                $user = User::create([
-                    'firebase_uid' => $firebaseUid,
-                    'name' => $name ?? 'User',
-                    'email' => $email,
-                    'photo' => $photoUrl,
-                ]);
-                Log::info('Created new user', ['user_id' => $user->id, 'firebase_uid' => $firebaseUid, 'email' => $email]);
-            }
-        } else {
-            // Update user info from Firebase
-            $user->update([
-                'name' => $name ?? $user->name,
-                'photo' => $photoUrl ?? $user->photo,
+        // Never silently re-link an existing Travelo account to a different
+        // Firebase identity just because the email string matches.
+        if (
+            !$existingByUid
+            && $existingByEmail
+            && $existingByEmail->firebase_uid
+            && $existingByEmail->firebase_uid !== $identity['uid']
+        ) {
+            Log::warning('Blocked Firebase identity relink attempt', [
+                'user_id' => $existingByEmail->id,
             ]);
-            Log::info('User already exists, updated info', ['user_id' => $user->id, 'firebase_uid' => $firebaseUid]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'This email is already linked to another sign-in method.',
+            ], 409);
         }
 
-        // Generate Sanctum API token
-        $token = $user->createToken('auth-token')->plainTextToken;
+        $trustedEmail = $identity['email_verified'] || $identity['provider'] === 'google.com';
+
+        // Email/password accounts created directly in Firebase must complete
+        // the Travelo OTP step before they can get a local session.
+        if (!$existingByUid && !$trustedEmail) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Please verify your email address before signing in.',
+            ], 403);
+        }
+
+        $result = $this->firebase->syncUser(
+            $identity['uid'],
+            $email,
+            $identity['name'],
+            $identity['photo']
+        );
+
+        if (isset($result['error'])) {
+            return response()->json([
+                'success' => false,
+                'message' => $result['error'],
+            ], 400);
+        }
 
         return response()->json([
             'success' => true,
             'message' => 'Login successful',
             'data' => [
-                'user' => $user,
-                'token' => $token,
+                'user' => $result['user'],
+                'token' => $result['token'],
             ],
         ]);
     }
 
     /**
-     * Logout user
+     * Logout user.
      */
     public function logout(Request $request): JsonResponse
     {
         $user = $request->user();
         if ($user) {
-            // Revoke all tokens (or use revokeCurrentToken() to revoke only current token)
             $user->tokens()->delete();
         }
 
@@ -136,45 +132,95 @@ class AuthController extends Controller
     }
 
     /**
-     * Register a new user with email/password
+     * Register a verified Firebase account.
+     *
+     * The previous implementation trusted a caller-supplied name/email and
+     * issued a Sanctum token without any proof of identity. Registration now
+     * requires a verified Firebase ID token. The Android client registers
+     * through Firebase + the email OTP endpoints; this endpoint remains for
+     * compatible clients that can supply an ID token.
      */
     public function register(Request $request): JsonResponse
     {
-        Log::info('Register request received');
-
         $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|string|email|max:255|unique:users',
+            'id_token' => 'required|string',
+            'name' => 'nullable|string|max:255',
         ]);
 
         try {
-            $user = User::create([
-                'name' => $request->name,
-                'email' => $request->email,
-            ]);
-
-            $token = $user->createToken('auth-token')->plainTextToken;
-
+            $identity = $this->firebase->verifyIdToken($request->id_token);
+        } catch (InvalidFirebaseTokenException $e) {
             return response()->json([
-                'success' => true,
-                'message' => 'Registration successful',
-                'data' => [
-                    'user' => $user,
-                    'token' => $token,
-                ],
-            ]);
-        } catch (\Exception $e) {
-            Log::error('Registration failed', ['error' => $e->getMessage()]);
+                'success' => false,
+                'message' => 'Your sign-in session is invalid or has expired. Please sign in again.',
+            ], 401);
+        } catch (Throwable $e) {
+            Log::error('Firebase token verification unavailable during registration', ['error' => $e->getMessage()]);
 
             return response()->json([
                 'success' => false,
-                'message' => 'Registration failed: ' . $e->getMessage(),
-            ], 500);
+                'message' => 'Registration is temporarily unavailable. Please try again.',
+            ], 503);
         }
+
+        $email = $identity['email'];
+
+        if (!$email) {
+            return response()->json([
+                'success' => false,
+                'message' => 'This account has no email address.',
+            ], 400);
+        }
+
+        $trustedEmail = $identity['email_verified'] || $identity['provider'] === 'google.com';
+
+        if (!$trustedEmail) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Please verify your email address before registering.',
+            ], 403);
+        }
+
+        $existing = User::where('firebase_uid', $identity['uid'])
+            ->orWhere('email', $email)
+            ->first();
+
+        if ($existing) {
+            return response()->json([
+                'success' => false,
+                'message' => 'This account is already registered. Please sign in.',
+            ], 409);
+        }
+
+        $result = $this->firebase->syncUser(
+            $identity['uid'],
+            $email,
+            $identity['name'] ?? $request->input('name'),
+            $identity['photo']
+        );
+
+        if (isset($result['error'])) {
+            return response()->json([
+                'success' => false,
+                'message' => $result['error'],
+            ], 400);
+        }
+
+        // Firebase has verified ownership of this address.
+        $result['user']->forceFill(['email_verified_at' => now()])->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Registration successful',
+            'data' => [
+                'user' => $result['user'],
+                'token' => $result['token'],
+            ],
+        ]);
     }
 
     /**
-     * Get current user
+     * Get current user.
      */
     public function me(Request $request): JsonResponse
     {

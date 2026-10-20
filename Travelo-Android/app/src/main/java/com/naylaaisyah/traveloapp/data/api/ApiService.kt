@@ -11,6 +11,16 @@ interface ApiService {
     @POST("api/auth/register")
     suspend fun register(@Body request: RegisterRequest): ApiResponse<AuthResponse>
 
+    // Email OTP verification — issued only after a correct, unexpired, single-use code
+    @POST("api/auth/otp/send")
+    suspend fun sendOtp(@Body request: FirebaseLoginRequest): ApiResponse<OtpSendResponse>
+
+    @POST("api/auth/otp/resend")
+    suspend fun resendOtp(@Body request: FirebaseLoginRequest): ApiResponse<OtpSendResponse>
+
+    @POST("api/auth/otp/verify")
+    suspend fun verifyOtp(@Body request: OtpVerifyRequest): ApiResponse<AuthResponse>
+
     @POST("api/auth/logout")
     suspend fun logout(@Header("Authorization") token: String): ApiResponse<Any>
 
@@ -72,6 +82,14 @@ interface ApiService {
         @Path("id") id: Int
     ): ApiResponse<Booking>
 
+    // Backend-verified e-ticket. Only issued for the owner of a paid,
+    // confirmed booking; the QR token is signed by the server.
+    @GET("api/bookings/{id}/e-ticket")
+    suspend fun getETicket(
+        @Header("Authorization") token: String,
+        @Path("id") id: Int
+    ): ApiResponse<ETicket>
+
     // Payment Endpoints
     @POST("api/payments/create-snap-token")
     suspend fun createSnapToken(
@@ -112,4 +130,7 @@ interface ApiService {
     suspend fun midtransNotification(
         @Body webhookData: Map<String, Any>
     ): ApiResponse<Any>
+
+    @GET("api/midtrans/health")
+    suspend fun midtransHealth(): ApiResponse<Map<String, Any>>
 }

@@ -135,7 +135,7 @@
                                     <span class="text-sm font-medium">{{ $package->destination->city }}, {{ $package->destination->country }}</span>
                                 </div>
                             </td>
-                            <td class="px-6 py-4 text-sm font-bold text-primary">${{ number_format($package->price, 2) }}</td>
+                            <td class="px-6 py-4 text-sm font-bold text-primary">Rp {{ number_format($package->price, 0, ',', '.') }}</td>
                             <td class="px-6 py-4">
                                 <span class="px-2.5 py-1 rounded-full bg-slate-100 text-xs font-semibold text-slate-600">{{ $package->duration_days }} Days</span>
                             </td>

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Local development only: debug builds may talk to http://10.0.2.2
+         or a LAN dev server. Release builds keep Android's default policy
+         (cleartext disabled) and Gradle enforces an https:// release URL. -->
+    <application android:usesCleartextTraffic="true" />
+</manifest>

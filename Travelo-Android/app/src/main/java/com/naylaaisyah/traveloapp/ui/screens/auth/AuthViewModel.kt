@@ -26,7 +26,14 @@ data class AuthState(
     val isLoading: Boolean = false,
     val isAuthenticated: Boolean = false,
     val user: FirebaseUser? = null,
-    val error: String? = null
+    val error: String? = null,
+    // Email OTP verification (step 2 of login).
+    // The session token is only issued after `verifyOtp()` succeeds.
+    val otpPending: Boolean = false,
+    val otpEmail: String? = null,
+    val otpSending: Boolean = false,
+    val otpVerifying: Boolean = false,
+    val otpResendAfter: Int = 60
 )
 
 @HiltViewModel
@@ -46,11 +53,25 @@ class AuthViewModel @Inject constructor(
     
     private fun checkCurrentUser() {
         val currentUser = firebaseAuth.currentUser
-        if (currentUser != null) {
-            _authState.value = AuthState(
-                isAuthenticated = true,
-                user = currentUser
-            )
+        when {
+            // A Firebase session only counts together with a backend token —
+            // that token is issued after the email OTP has been verified.
+            currentUser != null && sessionManager.isLoggedIn() -> {
+                _authState.value = AuthState(
+                    isAuthenticated = true,
+                    user = currentUser
+                )
+            }
+            currentUser != null -> {
+                // Signed in with Firebase but the OTP was never finished (or the
+                // backend session expired): clean up and start from the form.
+                try {
+                    firebaseAuth.signOut()
+                } catch (e: Exception) {
+                    Log.e("AuthViewModel", "Firebase signOut failed: ${e.message}")
+                }
+                Log.d("AuthViewModel", "No backend session — cleared half-finished login")
+            }
         }
     }
     
@@ -58,66 +79,16 @@ class AuthViewModel @Inject constructor(
     
     fun loginWithEmail(email: String, password: String) {
         viewModelScope.launch {
-            Log.d("AuthViewModel", "Starting email login for: $email")
+            Log.d("AuthViewModel", "Starting email login")
             _authState.value = _authState.value.copy(isLoading = true, error = null)
             try {
                 val result = firebaseAuth.signInWithEmailAndPassword(email, password).await()
                 Log.d("AuthViewModel", "Firebase email login successful")
                 
                 result.user?.let { user ->
-                    // Get Firebase ID token to sync with backend
-                    val idToken = user.getIdToken(false).await().token
-                    if (idToken != null) {
-                        // Sync with backend
-                        Log.d("AuthViewModel", "Syncing email login with backend...")
-                        repository.firebaseLogin(idToken).collect { resource ->
-                            when (resource) {
-                                is Resource.Loading<*> -> {
-                                    Log.d("AuthViewModel", "Backend sync loading...")
-                                }
-                                is Resource.Success<*> -> {
-                                    Log.d("AuthViewModel", "Backend sync successful")
-                                    (resource.data as? Pair<*, *>)?.let { pair ->
-                                        val backendUser = pair.first as? com.naylaaisyah.traveloapp.data.models.User
-                                        val token = pair.second as? String
-                                        if (backendUser != null && token != null) {
-                                            sessionManager.authToken = token
-                                            sessionManager.userEmail = backendUser.email
-                                            sessionManager.userId = backendUser.id.toString()
-                                            sessionManager.userName = backendUser.name
-                                            sessionManager.userPhoto = backendUser.photo
-                                        }
-                                    }
-                                    _authState.value = AuthState(
-                                        isLoading = false,
-                                        isAuthenticated = true,
-                                        user = user
-                                    )
-                                }
-                                is Resource.Error<*> -> {
-                                    Log.w("AuthViewModel", "Backend sync failed, allowing local login: ${resource.message}")
-                                    // Still allow login but show warning
-                                    sessionManager.userEmail = user.email
-                                    sessionManager.userId = user.uid
-                                    _authState.value = AuthState(
-                                        isLoading = false,
-                                        isAuthenticated = true,
-                                        user = user
-                                    )
-                                }
-                            }
-                        }
-                    } else {
-                        // Fallback if can't get ID token
-                        Log.w("AuthViewModel", "No ID token, allowing local login")
-                        sessionManager.userEmail = user.email
-                        sessionManager.userId = user.uid
-                        _authState.value = AuthState(
-                            isLoading = false,
-                            isAuthenticated = true,
-                            user = user
-                        )
-                    }
+                    // Login only: the account was already email-verified when it
+                    // was registered, so go straight in (no OTP here).
+                    loginAndFinish(user, source = "email login")
                 } ?: run {
                     Log.e("AuthViewModel", "Email login user is null")
                     _authState.value = AuthState(
@@ -168,69 +139,11 @@ class AuthViewModel @Inject constructor(
                 Log.d("AuthViewModel", "Created Google credential from idToken")
                 
                 val result = firebaseAuth.signInWithCredential(credential).await()
-                Log.d("AuthViewModel", "Firebase sign-in successful: ${result.user?.email}")
+                Log.d("AuthViewModel", "Firebase sign-in successful")
                 
                 result.user?.let { firebaseUser ->
-                    // Get fresh ID token for backend verification
-                    val backendIdToken = firebaseUser.getIdToken(false).await().token
-                    Log.d("AuthViewModel", "Got backend idToken: ${backendIdToken != null}")
-                    
-                    if (backendIdToken != null) {
-                        // Sync with backend
-                        Log.d("AuthViewModel", "Syncing with backend...")
-                        repository.firebaseLogin(backendIdToken).collect { resource ->
-                            when (resource) {
-                                is Resource.Loading<*> -> {
-                                    Log.d("AuthViewModel", "Backend login loading...")
-                                    // Already showing loading
-                                }
-                                is Resource.Success<*> -> {
-                                    Log.d("AuthViewModel", "Backend login successful")
-                                    (resource.data as? Pair<*, *>)?.let { pair ->
-                                        val backendUser = pair.first as? com.naylaaisyah.traveloapp.data.models.User
-                                        val token = pair.second as? String
-                                        if (backendUser != null && token != null) {
-                                            sessionManager.authToken = token
-                                            sessionManager.userEmail = backendUser.email
-                                            sessionManager.userId = backendUser.id.toString()
-                                            sessionManager.userName = backendUser.name
-                                            sessionManager.userPhoto = backendUser.photo
-                                        }
-                                    }
-                                    _authState.value = AuthState(
-                                        isLoading = false,
-                                        isAuthenticated = true,
-                                        user = firebaseUser
-                                    )
-                                }
-                                is Resource.Error<*> -> {
-                                    Log.w("AuthViewModel", "Backend login failed: ${resource.message}, allowing local login")
-                                    // Still allow login but store Firebase UID
-                                    sessionManager.userEmail = firebaseUser.email
-                                    sessionManager.userId = firebaseUser.uid
-                                    sessionManager.userName = firebaseUser.displayName
-                                    sessionManager.userPhoto = firebaseUser.photoUrl?.toString()
-                                    _authState.value = AuthState(
-                                        isLoading = false,
-                                        isAuthenticated = true,
-                                        user = firebaseUser
-                                    )
-                                }
-                            }
-                        }
-                    } else {
-                        Log.w("AuthViewModel", "No backend idToken, using Firebase info")
-                        // Fallback - store Firebase info locally
-                        sessionManager.userEmail = firebaseUser.email
-                        sessionManager.userId = firebaseUser.uid
-                        sessionManager.userName = firebaseUser.displayName
-                        sessionManager.userPhoto = firebaseUser.photoUrl?.toString()
-                        _authState.value = AuthState(
-                            isLoading = false,
-                            isAuthenticated = true,
-                            user = firebaseUser
-                        )
-                    }
+                    // Login only: no OTP at sign-in (verified earlier at sign-up).
+                    loginAndFinish(firebaseUser, source = "google login")
                 }
             } catch (e: ApiException) {
                 Log.e("AuthViewModel", "ApiException in Google login: ${e.statusCode} - ${e.message}", e)
@@ -301,70 +214,16 @@ class AuthViewModel @Inject constructor(
     
     fun register(email: String, password: String) {
         viewModelScope.launch {
-            Log.d("AuthViewModel", "Starting registration for: $email")
+            Log.d("AuthViewModel", "Starting registration")
             _authState.value = _authState.value.copy(isLoading = true, error = null)
             try {
                 val result = firebaseAuth.createUserWithEmailAndPassword(email, password).await()
                 Log.d("AuthViewModel", "Firebase registration successful")
                 
                 result.user?.let { firebaseUser ->
-                    // Get Firebase ID token to sync with backend
-                    val idToken = firebaseUser.getIdToken(false).await().token
-                    if (idToken != null) {
-                        // Sync with backend
-                        Log.d("AuthViewModel", "Syncing registration with backend...")
-                        repository.firebaseLogin(idToken).collect { resource ->
-                            when (resource) {
-                                is Resource.Loading<*> -> {
-                                    Log.d("AuthViewModel", "Backend registration sync loading...")
-                                }
-                                is Resource.Success<*> -> {
-                                    Log.d("AuthViewModel", "Backend registration sync successful")
-                                    (resource.data as? Pair<*, *>)?.let { pair ->
-                                        val backendUser = pair.first as? com.naylaaisyah.traveloapp.data.models.User
-                                        val token = pair.second as? String
-                                        if (backendUser != null && token != null) {
-                                            sessionManager.authToken = token
-                                            sessionManager.userEmail = backendUser.email
-                                            sessionManager.userId = backendUser.id.toString()
-                                            sessionManager.userName = backendUser.name
-                                            sessionManager.userPhoto = backendUser.photo
-                                        }
-                                    }
-                                    _authState.value = AuthState(
-                                        isLoading = false,
-                                        isAuthenticated = true,
-                                        user = firebaseUser
-                                    )
-                                }
-                                is Resource.Error<*> -> {
-                                    Log.w("AuthViewModel", "Backend registration sync failed, allowing local account: ${resource.message}")
-                                    // Still allow registration but store Firebase UID
-                                    sessionManager.userEmail = firebaseUser.email
-                                    sessionManager.userId = firebaseUser.uid
-                                    sessionManager.userName = firebaseUser.displayName
-                                    sessionManager.userPhoto = firebaseUser.photoUrl?.toString()
-                                    _authState.value = AuthState(
-                                        isLoading = false,
-                                        isAuthenticated = true,
-                                        user = firebaseUser
-                                    )
-                                }
-                            }
-                        }
-                    } else {
-                        // Fallback - store Firebase info locally
-                        Log.w("AuthViewModel", "No ID token, allowing local account")
-                        sessionManager.userEmail = firebaseUser.email
-                        sessionManager.userId = firebaseUser.uid
-                        sessionManager.userName = firebaseUser.displayName
-                        sessionManager.userPhoto = firebaseUser.photoUrl?.toString()
-                        _authState.value = AuthState(
-                            isLoading = false,
-                            isAuthenticated = true,
-                            user = firebaseUser
-                        )
-                    }
+                    // Registration always goes through email verification: the
+                    // account only becomes usable after the code is confirmed.
+                    beginEmailOtp(firebaseUser, source = "register")
                 }
             } catch (e: com.google.firebase.auth.FirebaseAuthUserCollisionException) {
                 Log.e("AuthViewModel", "Email already exists: ${e.message}")
@@ -406,6 +265,222 @@ class AuthViewModel @Inject constructor(
         }
     }
     
+    /**
+     * Sign-in path (email/password + Google).
+     *
+     * The OTP is only required at registration, so the account reaching this
+     * point has already been verified. We just sync the Firebase identity with
+     * the backend and open the session.
+     */
+    private suspend fun loginAndFinish(firebaseUser: FirebaseUser, source: String) {
+        val idToken = firebaseUser.getIdToken(false).await().token
+        if (idToken == null) {
+            Log.e("AuthViewModel", "[$source] Could not get Firebase idToken")
+            _authState.value = AuthState(
+                isLoading = false,
+                error = "Couldn't set up your session. Please try again."
+            )
+            return
+        }
+
+        Log.d("AuthViewModel", "[$source] Syncing with backend (no OTP needed at login)")
+        when (val resource = repository.login(idToken)) {
+            is Resource.Success -> {
+                val backendUser = resource.data.user
+                val token = resource.data.token
+
+                if (backendUser == null || token == null) {
+                    Log.e("AuthViewModel", "[$source] Backend returned no user/token")
+                    _authState.value = AuthState(
+                        isLoading = false,
+                        error = "Sign-in failed: the server response was incomplete."
+                    )
+                    return
+                }
+
+                storeSession(backendUser, token)
+                Log.d("AuthViewModel", "[$source] Backend session issued")
+                _authState.value = AuthState(
+                    isLoading = false,
+                    isAuthenticated = true,
+                    user = firebaseUser
+                )
+            }
+            is Resource.Error -> {
+                Log.e("AuthViewModel", "[$source] Backend login failed: ${resource.message}")
+                _authState.value = AuthState(
+                    isLoading = false,
+                    error = resource.message.ifBlank {
+                        "Can't reach the server. Check your connection and try again."
+                    }
+                )
+            }
+            else -> Unit
+        }
+    }
+
+    /**
+     * Asks the backend to email a 6-digit code and switches this state machine
+     * to the verification step. Called after a successful registration.
+     */
+    private suspend fun beginEmailOtp(firebaseUser: FirebaseUser, source: String) {
+        val email = firebaseUser.email
+        if (email.isNullOrBlank()) {
+            Log.e("AuthViewModel", "[$source] Firebase user has no email — cannot verify")
+            _authState.value = AuthState(
+                isLoading = false,
+                error = "This account has no email address, so it can't be verified."
+            )
+            return
+        }
+
+        val idToken = firebaseUser.getIdToken(false).await().token
+        if (idToken == null) {
+            Log.e("AuthViewModel", "[$source] Could not get Firebase idToken for OTP")
+            _authState.value = AuthState(
+                isLoading = false,
+                error = "Couldn't start verification. Please try again."
+            )
+            return
+        }
+
+        Log.d("AuthViewModel", "[$source] Requesting login OTP")
+        when (val resource = repository.sendOtp(idToken)) {
+            is Resource.Success -> {
+                _authState.value = AuthState(
+                    isLoading = false,
+                    otpPending = true,
+                    otpEmail = resource.data.email ?: email,
+                    otpResendAfter = resource.data.resendAfter
+                )
+            }
+            is Resource.Error -> {
+                Log.e("AuthViewModel", "[$source] OTP send failed: ${resource.message}")
+                _authState.value = AuthState(
+                    isLoading = false,
+                    error = resource.message.ifBlank {
+                        "Couldn't send the verification code to your email. Please try again."
+                    }
+                )
+            }
+            else -> Unit
+        }
+    }
+
+    /**
+     * Verifies the 6-digit code from the OTP screen. On success the backend
+     * returns the session token, which is stored before marking the user
+     * authenticated — so an unverified login can never complete.
+     */
+    fun verifyOtp(code: String) {
+        if (code.length != 6) return
+
+        viewModelScope.launch {
+            _authState.value = _authState.value.copy(otpVerifying = true, error = null)
+
+            val user = firebaseAuth.currentUser
+            if (user == null) {
+                _authState.value = AuthState(
+                    isLoading = false,
+                    error = "Your session has expired. Please sign in again."
+                )
+                return@launch
+            }
+
+            try {
+                val idToken = user.getIdToken(false).await().token
+                if (idToken == null) {
+                    _authState.value = _authState.value.copy(
+                        otpVerifying = false,
+                        error = "Couldn't verify the code. Please try again."
+                    )
+                    return@launch
+                }
+
+                when (val resource = repository.verifyOtp(idToken, code)) {
+                    is Resource.Success -> {
+                        storeSession(resource.data.first, resource.data.second)
+                        Log.d("AuthViewModel", "OTP verified — session token issued")
+                        _authState.value = AuthState(
+                            isLoading = false,
+                            isAuthenticated = true,
+                            user = user
+                        )
+                    }
+                    is Resource.Error -> {
+                        _authState.value = _authState.value.copy(
+                            otpVerifying = false,
+                            error = resource.message.ifBlank {
+                                "That code is incorrect or has expired."
+                            }
+                        )
+                    }
+                    else -> Unit
+                }
+            } catch (e: Exception) {
+                Log.e("AuthViewModel", "verifyOtp exception: ${e.message}", e)
+                _authState.value = _authState.value.copy(
+                    otpVerifying = false,
+                    error = "Couldn't reach the server. Check your connection."
+                )
+            }
+        }
+    }
+
+    /** Requests a fresh code; the backend enforces the 60-second cooldown. */
+    fun resendOtp() {
+        viewModelScope.launch {
+            _authState.value = _authState.value.copy(otpSending = true, error = null)
+
+            val idToken = firebaseAuth.currentUser?.getIdToken(false)?.await()?.token
+            if (idToken == null) {
+                _authState.value = _authState.value.copy(
+                    otpSending = false,
+                    error = "Your session has expired. Please sign in again."
+                )
+                return@launch
+            }
+
+            when (val resource = repository.resendOtp(idToken)) {
+                is Resource.Success -> {
+                    _authState.value = _authState.value.copy(
+                        otpSending = false,
+                        otpResendAfter = resource.data.resendAfter,
+                        error = null
+                    )
+                }
+                is Resource.Error -> {
+                    _authState.value = _authState.value.copy(
+                        otpSending = false,
+                        error = resource.message.ifBlank {
+                            "Couldn't resend the code. Please try again."
+                        }
+                    )
+                }
+                else -> Unit
+            }
+        }
+    }
+
+    /** The user backed out of the OTP screen: abort the half-finished login. */
+    fun cancelOtp() {
+        try {
+            firebaseAuth.signOut()
+        } catch (e: Exception) {
+            Log.e("AuthViewModel", "Firebase signOut on cancel failed: ${e.message}")
+        }
+        _authState.value = AuthState()
+        Log.d("AuthViewModel", "OTP step cancelled by user")
+    }
+
+    private fun storeSession(user: com.naylaaisyah.traveloapp.data.models.User, token: String) {
+        sessionManager.authToken = token
+        sessionManager.userEmail = user.email
+        sessionManager.userId = user.id.toString()
+        sessionManager.userName = user.name
+        sessionManager.userPhoto = user.photo
+    }
+
     fun logout() {
         viewModelScope.launch {
             try {
@@ -436,11 +511,12 @@ class AuthViewModel @Inject constructor(
         _authState.value = _authState.value.copy(error = null)
     }
     
+    fun setError(message: String) {
+        _authState.value = _authState.value.copy(isLoading = false, error = message)
+    }
+
     fun handleGoogleSignInError(message: String) {
-        _authState.value = AuthState(
-            isLoading = false,
-            error = message
-        )
+        setError(message)
     }
 }
 

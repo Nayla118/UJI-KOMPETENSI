@@ -13,6 +13,8 @@ import com.naylaaisyah.traveloapp.ui.screens.destination.DestinationDetailScreen
 import com.naylaaisyah.traveloapp.ui.screens.explore.ExploreScreen
 import com.naylaaisyah.traveloapp.ui.screens.home.HomeScreen
 import com.naylaaisyah.traveloapp.ui.screens.my_bookings.MyBookingsScreen
+import com.naylaaisyah.traveloapp.ui.screens.payment.PaymentResultScreen
+import com.naylaaisyah.traveloapp.ui.screens.payment.PaymentScreen
 import com.naylaaisyah.traveloapp.ui.screens.profile.ProfileScreen
 import com.naylaaisyah.traveloapp.ui.screens.tour_package.TourPackageDetailScreen
 
@@ -70,13 +72,6 @@ fun NavGraph(
                 },
                 onExploreClick = {
                     navController.navigate(Screen.Explore.route)
-                },
-                onSearchResultClick = { id, type ->
-                    if (type == "destination") {
-                        navController.navigate(Screen.DestinationDetail.createRoute(id))
-                    } else {
-                        navController.navigate(Screen.TourPackageDetail.createRoute(id))
-                    }
                 }
             )
         }
@@ -132,8 +127,8 @@ fun NavGraph(
             TourPackageDetailScreen(
                 tourPackageId = tourPackageId,
                 onBackClick = { navController.popBackStack() },
-                onBookNowClick = { id, title, price ->
-                    navController.navigate(Screen.Booking.createRoute(id, title, price))
+                onBookNowClick = { id, title, price, maxPeople ->
+                    navController.navigate(Screen.Booking.createRoute(id, title, price, maxPeople))
                 }
             )
         }
@@ -144,7 +139,11 @@ fun NavGraph(
             arguments = listOf(
                 navArgument("tourPackageId") { type = NavType.IntType },
                 navArgument("title") { type = NavType.StringType },
-                navArgument("price") { type = NavType.IntType }
+                navArgument("price") { type = NavType.IntType },
+                navArgument("maxPeople") {
+                    type = NavType.IntType
+                    defaultValue = 10
+                }
             )
         ) { backStackEntry ->
             val tourPackageId = backStackEntry.arguments?.getInt("tourPackageId") ?: 0
@@ -154,16 +153,61 @@ fun NavGraph(
                 } ?: ""
             } catch (e: Exception) { "" }
             val price = backStackEntry.arguments?.getInt("price") ?: 0
+            val maxPeople = backStackEntry.arguments?.getInt("maxPeople") ?: 10
             
             BookingScreen(
                 tourPackageId = tourPackageId,
                 tourPackageTitle = title,
                 tourPackagePrice = price,
+                tourPackageMaxPeople = maxPeople,
                 onBackClick = { navController.popBackStack() },
                 onPaymentSuccess = { bookingId ->
-                    // Navigate to payment or home after successful booking
+                    // Booking created -> continue to the dedicated payment flow.
+                    navController.navigate(Screen.Payment.createRoute(bookingId))
+                },
+                onContinueToPayment = { bookingId ->
+                    navController.navigate(Screen.Payment.createRoute(bookingId))
+                }
+            )
+        }
+
+        // Payment Screen (booking summary -> pay -> processing)
+        composable(
+            route = Screen.Payment.route,
+            arguments = listOf(
+                navArgument("bookingId") { type = NavType.IntType }
+            )
+        ) { backStackEntry ->
+            val bookingId = backStackEntry.arguments?.getInt("bookingId") ?: 0
+            PaymentScreen(
+                bookingId = bookingId,
+                onBackClick = { navController.popBackStack() },
+                onFinished = { finishedId ->
+                    navController.navigate(Screen.PaymentResult.createRoute(finishedId)) {
+                        popUpTo(Screen.Payment.route) { inclusive = true }
+                    }
+                }
+            )
+        }
+
+        // Payment Result Screen (success / waiting / failed / expired)
+        composable(
+            route = Screen.PaymentResult.route,
+            arguments = listOf(
+                navArgument("bookingId") { type = NavType.IntType }
+            )
+        ) { backStackEntry ->
+            val bookingId = backStackEntry.arguments?.getInt("bookingId") ?: 0
+            PaymentResultScreen(
+                bookingId = bookingId,
+                onViewMyBookings = {
                     navController.navigate(Screen.MyBookings.route) {
                         popUpTo(Screen.Home.route)
+                    }
+                },
+                onPayAgain = { payAgainId ->
+                    navController.navigate(Screen.Payment.createRoute(payAgainId)) {
+                        popUpTo(Screen.PaymentResult.route) { inclusive = true }
                     }
                 }
             )
@@ -172,7 +216,10 @@ fun NavGraph(
         // My Bookings Screen
         composable(Screen.MyBookings.route) {
             MyBookingsScreen(
-                onBackClick = { navController.popBackStack() }
+                onBackClick = { navController.popBackStack() },
+                onPayBooking = { bookingId ->
+                    navController.navigate(Screen.Payment.createRoute(bookingId))
+                }
             )
         }
         
@@ -180,6 +227,9 @@ fun NavGraph(
         composable(Screen.Profile.route) {
             ProfileScreen(
                 onBackClick = { navController.popBackStack() },
+                onMyBookings = {
+                    navController.navigate(Screen.MyBookings.route)
+                },
                 onLogout = {
                     navController.navigate(Screen.Login.route) {
                         popUpTo(Screen.Home.route) { inclusive = true }

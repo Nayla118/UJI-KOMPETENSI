@@ -15,5 +15,9 @@ return Application::configure(basePath: dirname(__DIR__))
         //
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        //
+        // API clients must always receive JSON (401/404/422/500), never a
+        // redirect to the admin login page or an HTML error page.
+        $exceptions->shouldRenderJsonWhen(
+            fn ($request) => $request->is('api/*') || $request->expectsJson()
+        );
     })->create();

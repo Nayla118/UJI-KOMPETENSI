@@ -2,6 +2,7 @@ package com.naylaaisyah.traveloapp.di
 
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
+import com.naylaaisyah.traveloapp.BuildConfig
 import com.naylaaisyah.traveloapp.data.api.ApiService
 import com.naylaaisyah.traveloapp.util.Constants
 import dagger.Module
@@ -31,7 +32,14 @@ object NetworkModule {
     @Provides
     fun provideLoggingInterceptor(): HttpLoggingInterceptor {
         return HttpLoggingInterceptor().apply {
-            level = HttpLoggingInterceptor.Level.BODY
+            // BODY logging leaks Authorization headers, Firebase ID tokens,
+            // emails and payment payloads. Keep metadata only in debug builds
+            // and disable logging entirely in release.
+            level = if (BuildConfig.DEBUG) {
+                HttpLoggingInterceptor.Level.BASIC
+            } else {
+                HttpLoggingInterceptor.Level.NONE
+            }
         }
     }
 
@@ -40,7 +48,19 @@ object NetworkModule {
     fun provideOkHttpClient(
         loggingInterceptor: HttpLoggingInterceptor
     ): OkHttpClient {
+        // ngrok free plan serves a browser-warning HTML page unless this
+        // header is present. Without it, Retrofit receives HTML instead of
+        // JSON and every API call (incl. payment-status / verify-and-sync)
+        // fails while on an ngrok base URL.
+        val apiHeadersInterceptor = okhttp3.Interceptor { chain ->
+            val request = chain.request().newBuilder()
+                .header("Accept", "application/json")
+                .addHeader("ngrok-skip-browser-warning", "true")
+                .build()
+            chain.proceed(request)
+        }
         return OkHttpClient.Builder()
+            .addInterceptor(apiHeadersInterceptor)
             .addInterceptor(loggingInterceptor)
             .connectTimeout(Constants.CONNECT_TIMEOUT, TimeUnit.SECONDS)
             .readTimeout(Constants.READ_TIMEOUT, TimeUnit.SECONDS)

@@ -1,10 +1,10 @@
 @extends('layouts.admin')
 
-@section('title', 'Booking Management - TravelAdmin')
+@section('title', 'Booking Management - Travelo Admin')
 
 <!-- Header -->
 @section('content')
-<header class="h-16 border-b border-slate-200 bg-white/80 backdrop-blur-md sticky top-0 z-10 px-8 flex items-center justify-between">
+<header class="h-16 border-b border-slate-200 bg-white sticky top-0 z-10 px-8 flex items-center justify-between">
     <div class="flex items-center gap-4">
         <span class="material-symbols-outlined text-slate-400">search</span>
         <input class="bg-transparent border-none focus:ring-0 text-sm w-64" placeholder="Search bookings..." type="text"/>
@@ -90,7 +90,7 @@
                             <span class="text-sm text-slate-600">{{ \Carbon\Carbon::parse($booking->booking_date)->format('M d, Y') }}</span>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
-                            <span class="text-sm font-bold text-slate-900">${{ number_format($booking->total_price, 2) }}</span>
+                            <span class="text-sm font-bold text-slate-900">Rp {{ number_format($booking->total_price, 0, ',', '.') }}</span>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
                             @if($booking->payment_status === 'paid')
@@ -164,7 +164,7 @@
     <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mt-8">
         <div class="bg-white p-6 rounded-xl border border-slate-200">
             <p class="text-slate-500 text-xs font-bold uppercase tracking-widest mb-1">Total Revenue</p>
-            <h4 class="text-2xl font-black">${{ number_format($totalRevenue, 0) }}</h4>
+            <h4 class="text-2xl font-black">Rp {{ number_format($totalRevenue, 0, ',', '.') }}</h4>
             <p class="text-green-500 text-xs font-bold flex items-center gap-1 mt-2">
                 <span class="material-symbols-outlined text-xs">trending_up</span>
                 From paid bookings
