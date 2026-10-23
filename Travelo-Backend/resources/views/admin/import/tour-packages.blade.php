@@ -24,8 +24,8 @@
             <li><strong>max_people</strong> (required) - Maximum number of people (integer)</li>
             <li><strong>description</strong> (optional) - Package description</li>
             <li><strong>image</strong> (optional) - Image URL or path</li>
-            <li><strong>rating</strong> (optional) - Rating between 0-5</li>
         </ul>
+        <p class="mt-3 text-xs text-green-700">Ratings are not imported. Tour packages inherit the published review rating of their destination.</p>
     </div>
 
     <!-- Available Destinations -->

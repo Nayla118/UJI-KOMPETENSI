@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\Booking;
 use App\Models\Payment;
 use App\Services\MidtransService;
 use Illuminate\Http\JsonResponse;
@@ -308,15 +307,12 @@ class PaymentController extends Controller
      */
     public function markAsPaid(Request $request, int $bookingId): JsonResponse
     {
-        // Verify user is owner of booking
-        $booking = Booking::with('payment')->findOrFail($bookingId);
-
-        if ($booking->user_id !== $request->user()->id) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Unauthorized',
-            ], 403);
-        }
+        // Scope through the authenticated user's bookings so a foreign or
+        // missing id is indistinguishable (404), matching retrySync.
+        $booking = $request->user()
+            ->bookings()
+            ->with('payment')
+            ->findOrFail($bookingId);
 
         $payment = $booking->payment;
 

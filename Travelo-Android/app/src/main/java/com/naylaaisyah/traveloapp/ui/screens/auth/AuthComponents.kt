@@ -88,6 +88,12 @@ fun AuthBrandBar(
             )
             Spacer(Modifier.width(4.dp))
         }
+        Image(
+            painter = painterResource(id = R.drawable.travelo_logo),
+            contentDescription = null,
+            modifier = Modifier.size(40.dp)
+        )
+        Spacer(Modifier.width(10.dp))
         Text(
             text = "Travelo",
             style = MaterialTheme.typography.headlineSmall,

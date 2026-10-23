@@ -482,6 +482,22 @@ class AuthViewModel @Inject constructor(
     }
 
     fun logout() {
+        // Clear the local session and Firebase user before the UI navigates to
+        // Login. LoginScreen creates a new AuthViewModel whose init() would
+        // otherwise see the old Firebase user + still-present token and send
+        // the user straight back to Home.
+        sessionManager.clearSession()
+        _authState.value = AuthState()
+
+        try {
+            firebaseAuth.signOut()
+            Log.d("AuthViewModel", "Firebase sign out successful")
+        } catch (e: Exception) {
+            Log.e("AuthViewModel", "Error during Firebase sign out: ${e.message}", e)
+        }
+
+        // Provider cleanup is best-effort and may finish after the activity
+        // leaves; clearing the local session above is the authoritative part.
         viewModelScope.launch {
             try {
                 // Both signOut() and revokeAccess() to completely clear Google Sign-In cache
@@ -495,18 +511,9 @@ class AuthViewModel @Inject constructor(
             } catch (e: Exception) {
                 Log.e("AuthViewModel", "Error during Google sign out: ${e.message}", e)
             }
-            try {
-                firebaseAuth.signOut()
-                Log.d("AuthViewModel", "Firebase sign out successful")
-            } catch (e: Exception) {
-                Log.e("AuthViewModel", "Error during Firebase sign out: ${e.message}", e)
-            }
-            sessionManager.clearSession()
-            _authState.value = AuthState()
-            Log.d("AuthViewModel", "Logout complete")
         }
     }
-    
+
     fun clearError() {
         _authState.value = _authState.value.copy(error = null)
     }

@@ -5,9 +5,12 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -18,6 +21,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Error
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -28,6 +32,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.asImageBitmap
@@ -48,6 +53,8 @@ import com.naylaaisyah.traveloapp.ui.components.TraveloButton
 import com.naylaaisyah.traveloapp.ui.components.TraveloButtonVariant
 import com.naylaaisyah.traveloapp.ui.components.TraveloIconButton
 import com.naylaaisyah.traveloapp.ui.theme.CardShape
+import com.naylaaisyah.traveloapp.ui.theme.DangerDeep
+import com.naylaaisyah.traveloapp.ui.theme.DangerTint
 import com.naylaaisyah.traveloapp.ui.theme.HeroShape
 import com.naylaaisyah.traveloapp.ui.theme.PillShape
 import com.naylaaisyah.traveloapp.ui.theme.PlumBorder
@@ -58,7 +65,6 @@ import com.naylaaisyah.traveloapp.ui.theme.SageDeep
 import com.naylaaisyah.traveloapp.ui.theme.SageTint
 import com.naylaaisyah.traveloapp.ui.theme.SurfaceWhite
 import com.naylaaisyah.traveloapp.ui.theme.TraveloSpacing
-import com.naylaaisyah.traveloapp.ui.theme.VanillaCream
 import com.naylaaisyah.traveloapp.util.formatDisplayDate
 import com.naylaaisyah.traveloapp.util.formatRupiah
 
@@ -76,7 +82,7 @@ fun ETicketDialog(
     onDismiss: () -> Unit
 ) {
     val qrCode = remember(ticket.ticketToken) {
-        generateQrCode(ticket.ticketToken, 720)
+        generateQrCode(ticket.ticketToken, 1024)
     }
     val tourTitle = ticket.tourTitle
         ?: booking.tourPackage?.safeTitle
@@ -133,21 +139,29 @@ fun ETicketDialog(
                 Spacer(Modifier.height(TraveloSpacing.md))
 
                 Surface(
+                    modifier = Modifier.fillMaxWidth(),
                     shape = CardShape,
-                    color = VanillaCream,
+                    color = SurfaceWhite,
                     border = BorderStroke(1.dp, PlumBorder)
                 ) {
                     if (qrCode != null) {
-                        Image(
-                            bitmap = qrCode,
-                            contentDescription = stringResource(
-                                R.string.eticket_qr_description,
-                                ticket.reference
-                            ),
+                        Box(
                             modifier = Modifier
-                                .padding(TraveloSpacing.sm)
-                                .size(180.dp)
-                        )
+                                .fillMaxWidth()
+                                .aspectRatio(1f)
+                                .padding(TraveloSpacing.sm),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Image(
+                                bitmap = qrCode,
+                                contentDescription = stringResource(
+                                    R.string.eticket_qr_description,
+                                    ticket.reference
+                                ),
+                                modifier = Modifier.fillMaxSize(),
+                                filterQuality = FilterQuality.None
+                            )
+                        }
                     } else {
                         Text(
                             text = stringResource(R.string.eticket_qr_error),
@@ -180,22 +194,36 @@ fun ETicketDialog(
 
                 Spacer(Modifier.height(TraveloSpacing.xs))
 
-                Surface(shape = PillShape, color = SageTint) {
+                val usageStatus = ticket.usageStatus
+                val statusLabel = when (usageStatus) {
+                    "used" -> R.string.eticket_status_used
+                    "expired" -> R.string.eticket_status_expired
+                    else -> R.string.eticket_verified
+                }
+                val statusBackground = if (usageStatus == "unused") SageTint else DangerTint
+                val statusForeground = if (usageStatus == "unused") SageDeep else DangerDeep
+                val statusIcon = when (usageStatus) {
+                    "used" -> Icons.Default.Close
+                    "expired" -> Icons.Default.Error
+                    else -> Icons.Default.CheckCircle
+                }
+
+                Surface(shape = PillShape, color = statusBackground) {
                     Row(
                         modifier = Modifier.padding(horizontal = TraveloSpacing.xs, vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
-                            imageVector = Icons.Default.CheckCircle,
+                            imageVector = statusIcon,
                             contentDescription = null,
-                            tint = SageDeep,
+                            tint = statusForeground,
                             modifier = Modifier.size(14.dp)
                         )
                         Spacer(Modifier.width(4.dp))
                         Text(
-                            text = stringResource(R.string.eticket_verified),
+                            text = stringResource(statusLabel),
                             style = MaterialTheme.typography.labelSmall,
-                            color = SageDeep
+                            color = statusForeground
                         )
                     }
                 }
@@ -206,6 +234,19 @@ fun ETicketDialog(
                     label = stringResource(R.string.eticket_travel_date),
                     value = formatDisplayDate(travelDate)
                 )
+                ticket.destination?.let { destination ->
+                    val place = listOfNotNull(
+                        destination.name?.takeIf { it.isNotBlank() },
+                        destination.city?.takeIf { it.isNotBlank() }
+                    ).joinToString(", ")
+
+                    if (place.isNotBlank()) {
+                        TicketRow(
+                            label = stringResource(R.string.eticket_destination),
+                            value = place
+                        )
+                    }
+                }
                 TicketRow(
                     label = stringResource(R.string.eticket_travelers_label),
                     value = pluralStringResource(
@@ -314,7 +355,9 @@ private fun DashedDivider() {
 
 private fun generateQrCode(payload: String, sizePx: Int): ImageBitmap? = runCatching {
     val hints = mapOf<EncodeHintType, Any>(
-        EncodeHintType.MARGIN to 1,
+        // Four quiet-zone modules are part of the QR specification. Without
+        // this margin, camera scanners may fail to locate the code.
+        EncodeHintType.MARGIN to 4,
         EncodeHintType.CHARACTER_SET to "UTF-8"
     )
     val matrix = QRCodeWriter().encode(
@@ -326,7 +369,7 @@ private fun generateQrCode(payload: String, sizePx: Int): ImageBitmap? = runCatc
     )
 
     val pixels = IntArray(sizePx * sizePx)
-    val ink = 0xFF493747.toInt()
+    val ink = 0xFF000000.toInt()
     val paper = 0xFFFFFFFF.toInt()
 
     for (y in 0 until sizePx) {

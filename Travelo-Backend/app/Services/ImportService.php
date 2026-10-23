@@ -31,7 +31,6 @@ class ImportService
         'country',
         'description',
         'image',
-        'rating',
         'is_popular',
     ];
 
@@ -57,7 +56,6 @@ class ImportService
         'duration_days',
         'max_people',
         'image',
-        'rating',
     ];
 
     /**
@@ -124,7 +122,6 @@ class ImportService
                         // Update existing
                         $existingDestination->update([
                             'description' => $row['description'] ?? $existingDestination->description,
-                            'rating' => $row['rating'] ?? $existingDestination->rating,
                             'is_popular' => isset($row['is_popular']) ? filter_var($row['is_popular'], FILTER_VALIDATE_BOOLEAN) : $existingDestination->is_popular,
                         ]);
                         $results['updated']++;
@@ -136,7 +133,6 @@ class ImportService
                             'country' => $row['country'],
                             'description' => $row['description'] ?? null,
                             'image' => $row['image'] ?? null,
-                            'rating' => $row['rating'] ?? 0,
                             'is_popular' => isset($row['is_popular']) ? filter_var($row['is_popular'], FILTER_VALIDATE_BOOLEAN) : false,
                         ]);
                         $results['imported']++;
@@ -239,7 +235,6 @@ class ImportService
                             'price' => $row['price'] ?? $existingPackage->price,
                             'duration_days' => $row['duration_days'] ?? $existingPackage->duration_days,
                             'max_people' => $row['max_people'] ?? $existingPackage->max_people,
-                            'rating' => $row['rating'] ?? $existingPackage->rating,
                         ]);
                         $results['updated']++;
                     } else {
@@ -252,7 +247,6 @@ class ImportService
                             'duration_days' => $row['duration_days'],
                             'max_people' => $row['max_people'],
                             'image' => $row['image'] ?? null,
-                            'rating' => $row['rating'] ?? 4.5,
                         ]);
                         $results['imported']++;
                     }
@@ -374,13 +368,6 @@ class ImportService
             $errors[] = "Row {$rowNumber}: Country is required.";
         }
 
-        // Validate rating
-        if (isset($row['rating']) && $row['rating'] !== '') {
-            if (!is_numeric($row['rating']) || $row['rating'] < 0 || $row['rating'] > 5) {
-                $errors[] = "Row {$rowNumber}: Rating must be a number between 0 and 5.";
-            }
-        }
-
         return [
             'valid' => empty($errors),
             'errors' => $errors,
@@ -423,13 +410,6 @@ class ImportService
             $errors[] = "Row {$rowNumber}: Max people must be a positive integer.";
         }
 
-        // Validate rating
-        if (isset($row['rating']) && $row['rating'] !== '') {
-            if (!is_numeric($row['rating']) || $row['rating'] < 0 || $row['rating'] > 5) {
-                $errors[] = "Row {$rowNumber}: Rating must be a number between 0 and 5.";
-            }
-        }
-
         return [
             'valid' => empty($errors),
             'errors' => $errors,
@@ -450,7 +430,6 @@ class ImportService
                     'country' => 'Indonesia',
                     'description' => 'Beautiful island with stunning beaches and temples',
                     'image' => '',
-                    'rating' => '4.5',
                     'is_popular' => 'true',
                 ],
                 [
@@ -459,7 +438,6 @@ class ImportService
                     'country' => 'Indonesia',
                     'description' => 'Cultural heart of Java with ancient temples and royal palaces',
                     'image' => '',
-                    'rating' => '4.7',
                     'is_popular' => 'true',
                 ],
                 [
@@ -468,7 +446,6 @@ class ImportService
                     'country' => 'Indonesia',
                     'description' => 'World-class diving destination with pristine coral reefs',
                     'image' => '',
-                    'rating' => '4.9',
                     'is_popular' => 'true',
                 ],
                 [
@@ -477,7 +454,6 @@ class ImportService
                     'country' => 'Indonesia',
                     'description' => 'Home of the famous Komodo dragons and stunning pink beaches',
                     'image' => '',
-                    'rating' => '4.6',
                     'is_popular' => 'true',
                 ],
                 [
@@ -486,7 +462,6 @@ class ImportService
                     'country' => 'Indonesia',
                     'description' => 'Beautiful beaches and the majestic Mount Rinjani',
                     'image' => '',
-                    'rating' => '4.4',
                     'is_popular' => 'false',
                 ],
                 [
@@ -495,7 +470,6 @@ class ImportService
                     'country' => 'Indonesia',
                     'description' => 'Vibrant capital city with modern attractions and rich history',
                     'image' => '',
-                    'rating' => '4.2',
                     'is_popular' => 'false',
                 ],
                 [
@@ -504,7 +478,6 @@ class ImportService
                     'country' => 'Indonesia',
                     'description' => 'Cool highland city known for tea plantations and art deco architecture',
                     'image' => '',
-                    'rating' => '4.3',
                     'is_popular' => 'false',
                 ],
                 [
@@ -513,7 +486,6 @@ class ImportService
                     'country' => 'Indonesia',
                     'description' => 'Historic port city with colonial architecture and vibrant markets',
                     'image' => '',
-                    'rating' => '4.1',
                     'is_popular' => 'false',
                 ],
                 [
@@ -522,7 +494,6 @@ class ImportService
                     'country' => 'Indonesia',
                     'description' => 'Charming city with colonial heritage and access to Mount Bromo',
                     'image' => '',
-                    'rating' => '4.4',
                     'is_popular' => 'false',
                 ],
                 [
@@ -531,7 +502,6 @@ class ImportService
                     'country' => 'Indonesia',
                     'description' => 'Historic port city with Dutch colonial architecture',
                     'image' => '',
-                    'rating' => '4.0',
                     'is_popular' => 'false',
                 ],
                 [
@@ -540,7 +510,6 @@ class ImportService
                     'country' => 'Indonesia',
                     'description' => 'Gateway to Eastern Indonesia with rich Bugis culture',
                     'image' => '',
-                    'rating' => '4.2',
                     'is_popular' => 'false',
                 ],
                 [
@@ -549,7 +518,6 @@ class ImportService
                     'country' => 'Indonesia',
                     'description' => 'Gateway to Lake Toba and Batak culture',
                     'image' => '',
-                    'rating' => '4.1',
                     'is_popular' => 'false',
                 ],
                 [
@@ -558,7 +526,6 @@ class ImportService
                     'country' => 'Indonesia',
                     'description' => 'Famous for Minangkabau culture and delicious cuisine',
                     'image' => '',
-                    'rating' => '4.3',
                     'is_popular' => 'false',
                 ],
                 [
@@ -567,7 +534,6 @@ class ImportService
                     'country' => 'Indonesia',
                     'description' => 'Historic city with the iconic Ampera Bridge',
                     'image' => '',
-                    'rating' => '4.0',
                     'is_popular' => 'false',
                 ],
                 [
@@ -576,7 +542,6 @@ class ImportService
                     'country' => 'Indonesia',
                     'description' => 'Equatorial city on the Kapuas River',
                     'image' => '',
-                    'rating' => '3.9',
                     'is_popular' => 'false',
                 ],
             ],
@@ -602,7 +567,6 @@ class ImportService
                     'duration_days' => '5',
                     'max_people' => '10',
                     'image' => '',
-                    'rating' => '4.5',
                 ],
                 [
                     'destination_id' => $firstDestinationId,
@@ -612,7 +576,6 @@ class ImportService
                     'duration_days' => '4',
                     'max_people' => '15',
                     'image' => '',
-                    'rating' => '4.7',
                 ],
                 [
                     'destination_id' => $firstDestinationId,
@@ -622,7 +585,6 @@ class ImportService
                     'duration_days' => '7',
                     'max_people' => '8',
                     'image' => '',
-                    'rating' => '4.9',
                 ],
                 [
                     'destination_id' => $firstDestinationId,
@@ -632,7 +594,6 @@ class ImportService
                     'duration_days' => '6',
                     'max_people' => '12',
                     'image' => '',
-                    'rating' => '4.6',
                 ],
                 [
                     'destination_id' => $firstDestinationId,
@@ -642,7 +603,6 @@ class ImportService
                     'duration_days' => '4',
                     'max_people' => '20',
                     'image' => '',
-                    'rating' => '4.4',
                 ],
                 [
                     'destination_id' => $firstDestinationId,
@@ -652,7 +612,6 @@ class ImportService
                     'duration_days' => '3',
                     'max_people' => '25',
                     'image' => '',
-                    'rating' => '4.2',
                 ],
                 [
                     'destination_id' => $firstDestinationId,
@@ -662,7 +621,6 @@ class ImportService
                     'duration_days' => '3',
                     'max_people' => '18',
                     'image' => '',
-                    'rating' => '4.3',
                 ],
                 [
                     'destination_id' => $firstDestinationId,
@@ -672,7 +630,6 @@ class ImportService
                     'duration_days' => '2',
                     'max_people' => '30',
                     'image' => '',
-                    'rating' => '4.1',
                 ],
                 [
                     'destination_id' => $firstDestinationId,
@@ -682,7 +639,6 @@ class ImportService
                     'duration_days' => '3',
                     'max_people' => '15',
                     'image' => '',
-                    'rating' => '4.5',
                 ],
                 [
                     'destination_id' => $firstDestinationId,
@@ -692,7 +648,6 @@ class ImportService
                     'duration_days' => '2',
                     'max_people' => '20',
                     'image' => '',
-                    'rating' => '4.0',
                 ],
             ],
             'available_destinations' => $destinations,

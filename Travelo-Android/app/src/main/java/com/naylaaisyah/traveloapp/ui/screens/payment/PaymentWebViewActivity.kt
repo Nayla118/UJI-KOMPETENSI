@@ -1,7 +1,6 @@
 package com.naylaaisyah.traveloapp.ui.screens.payment
 
 import android.annotation.SuppressLint
-import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.content.res.ColorStateList
@@ -28,7 +27,24 @@ import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
+import androidx.activity.ComponentActivity
+import androidx.activity.OnBackPressedCallback
 import com.naylaaisyah.traveloapp.BuildConfig
+import com.naylaaisyah.traveloapp.data.models.PaymentOutcome
+import com.naylaaisyah.traveloapp.data.models.outcome
+import com.naylaaisyah.traveloapp.data.repository.TraveloRepository
+import com.naylaaisyah.traveloapp.util.Resource
+import com.naylaaisyah.traveloapp.util.SessionManager
+import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 
 /**
  * Activity that displays the official Midtrans Snap payment page in an
@@ -51,10 +67,12 @@ import com.naylaaisyah.traveloapp.BuildConfig
  * payment methods never redirect to a success URL.
  */
 @SuppressLint("SetJavaScriptEnabled", "SetTextI18n")
-class PaymentWebViewActivity : Activity() {
+@AndroidEntryPoint
+class PaymentWebViewActivity : ComponentActivity() {
 
     companion object {
         const val EXTRA_SNAP_TOKEN = "snap_token"
+        const val EXTRA_BOOKING_ID = "booking_id"
         const val EXTRA_IS_SANDBOX = "is_sandbox"
         const val RESULT_PAYMENT_SUCCESS = 1001
         const val RESULT_PAYMENT_PENDING = 1002
@@ -62,6 +80,13 @@ class PaymentWebViewActivity : Activity() {
 
         private const val TIMEOUT_MS = 10 * 60 * 1000L
         private const val CHECK_INTERVAL_MS = 5000L
+
+        /**
+         * Backend status polling while Snap is open. This is what lets the
+         * app leave the payment page automatically after a QRIS / VA / wallet
+         * payment that never redirects to a merchant success URL.
+         */
+        private const val STATUS_POLL_INTERVAL_MS = 5000L
 
         // "Cute & Dreamy" brand tokens (kept in sync with ui/theme/Colors.kt).
         // This Activity builds its views in plain Android code, so the Compose
@@ -85,6 +110,16 @@ class PaymentWebViewActivity : Activity() {
     private var hasResult = false
     private var openTime = 0L
     private var firstPageLoaded = false
+    private var bookingId = 0
+
+    @Inject
+    lateinit var repository: TraveloRepository
+
+    @Inject
+    lateinit var sessionManager: SessionManager
+
+    private val statusScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private var statusPollJob: Job? = null
 
     private val urlCheckRunnable = object : Runnable {
         override fun run() {
@@ -114,12 +149,19 @@ class PaymentWebViewActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                onUserBack()
+            }
+        })
+
         window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
 
         val snapToken = intent.getStringExtra(EXTRA_SNAP_TOKEN) ?: run {
             finish()
             return
         }
+        bookingId = intent.getIntExtra(EXTRA_BOOKING_ID, 0)
         val isSandbox = intent.getBooleanExtra(EXTRA_IS_SANDBOX, true)
 
         val baseUrl = if (isSandbox) {
@@ -134,6 +176,40 @@ class PaymentWebViewActivity : Activity() {
         setupWebView()
         webView?.loadUrl(lastSnapUrl)
         handler.postDelayed(urlCheckRunnable, CHECK_INTERVAL_MS)
+        startAutoReturnPolling()
+    }
+
+    /**
+     * Watches backend truth while the Snap page is still open. When the
+     * webhook (or the user's payment method) marks the booking paid, this
+     * activity closes itself and [PaymentScreen] takes over with the
+     * "confirming your payment" waiting state. The app never infers success
+     * from the page URL alone — only the authenticated backend response can
+     * trigger this auto-return.
+     */
+    private fun startAutoReturnPolling() {
+        if (bookingId <= 0) return
+
+        statusPollJob = statusScope.launch {
+            while (isActive && !hasResult) {
+                val token = sessionManager.authToken ?: return@launch
+
+                when (val result = repository.getPaymentStatus(token, bookingId)) {
+                    is Resource.Success -> {
+                        if (!hasResult && result.data.outcome() == PaymentOutcome.SUCCESS) {
+                            logDebug("Backend confirms payment; returning to app automatically")
+                            setResult(RESULT_PAYMENT_SUCCESS)
+                            finishWithResult()
+                            return@launch
+                        }
+                    }
+                    is Resource.Error -> logDebug("Payment status poll failed; will retry")
+                    else -> Unit
+                }
+
+                delay(STATUS_POLL_INTERVAL_MS)
+            }
+        }
     }
 
     private fun buildUi() {
@@ -622,13 +698,10 @@ class PaymentWebViewActivity : Activity() {
 
     override fun onDestroy() {
         handler.removeCallbacks(urlCheckRunnable)
+        statusPollJob?.cancel()
+        statusScope.cancel()
         webView?.destroy()
         webView = null
         super.onDestroy()
-    }
-
-    @Deprecated("Deprecated in Java")
-    override fun onBackPressed() {
-        onUserBack()
     }
 }

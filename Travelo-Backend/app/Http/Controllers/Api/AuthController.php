@@ -6,15 +6,18 @@ use App\Exceptions\InvalidFirebaseTokenException;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Services\FirebaseAuthService;
+use App\Services\ProfilePhotoService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Validator;
 use Throwable;
 
 class AuthController extends Controller
 {
     public function __construct(
-        protected FirebaseAuthService $firebase
+        protected FirebaseAuthService $firebase,
+        protected ProfilePhotoService $profilePhotos
     ) {}
 
     /**
@@ -227,6 +230,81 @@ class AuthController extends Controller
         return response()->json([
             'success' => true,
             'data' => $request->user(),
+        ]);
+    }
+
+    /**
+     * Replace the signed-in traveller's profile photo.
+     *
+     * The upload is public (profile photos are meant to be shown in the app)
+     * but it must be a real raster image. SVG is deliberately not accepted
+     * because it can carry active content.
+     */
+    public function updatePhoto(Request $request): JsonResponse
+    {
+        $request->validate([
+            'photo' => ['required', 'file', 'image', 'mimes:jpg,jpeg,png,webp', 'max:10240'],
+        ]);
+
+        try {
+            $user = $this->profilePhotos->store(
+                $request->user(),
+                $request->file('photo')
+            );
+        } catch (\InvalidArgumentException) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Choose a JPG, PNG, or WebP image up to 10 MB.',
+            ], 422);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Profile photo updated',
+            'data' => $user,
+        ]);
+    }
+
+    /**
+     * Update the traveller-maintained part of the profile.
+     *
+     * Email is intentionally not editable here: it belongs to the verified
+     * Firebase identity used to sign in.
+     */
+    public function updateProfile(Request $request): JsonResponse
+    {
+        $input = $request->all();
+        $input['name'] = is_string($input['name'] ?? null) ? trim($input['name']) : '';
+        $input['date_of_birth'] = $input['date_of_birth'] ?? null;
+
+        if (is_string($input['date_of_birth']) && trim($input['date_of_birth']) === '') {
+            $input['date_of_birth'] = null;
+        }
+
+        foreach (['phone', 'city'] as $field) {
+            $value = $input[$field] ?? null;
+            if (is_string($value)) {
+                $value = trim($value);
+                $input[$field] = $value === '' ? null : $value;
+            } else {
+                $input[$field] = $value;
+            }
+        }
+
+        $validated = Validator::make($input, [
+            'name' => 'required|string|min:2|max:80',
+            'phone' => ['nullable', 'string', 'max:30', 'regex:/^\+?[0-9][0-9\s().-]{5,29}$/'],
+            'date_of_birth' => 'nullable|date_format:Y-m-d|after_or_equal:1900-01-01|before:today',
+            'city' => 'nullable|string|max:100',
+        ])->validate();
+
+        $user = $request->user();
+        $user->fill($validated)->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Profile updated',
+            'data' => $user->fresh(),
         ]);
     }
 }

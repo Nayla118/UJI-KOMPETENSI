@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.naylaaisyah.traveloapp.data.models.Destination
 import com.naylaaisyah.traveloapp.data.models.TourPackage
+import com.naylaaisyah.traveloapp.data.recovery.DocumentRecoveryJob
+import com.naylaaisyah.traveloapp.data.recovery.DocumentRecoveryStore
 import com.naylaaisyah.traveloapp.data.repository.TraveloRepository
 import com.naylaaisyah.traveloapp.util.Resource
 import com.naylaaisyah.traveloapp.util.SessionManager
@@ -21,27 +23,30 @@ data class HomeUiState(
     val featuredTours: List<TourPackage> = emptyList(),
     val userName: String = "",
     val userPhoto: String? = null,
+    val pendingDocumentJobs: List<DocumentRecoveryJob> = emptyList(),
     val error: String? = null
 )
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val repository: TraveloRepository,
-    private val sessionManager: SessionManager
+    private val sessionManager: SessionManager,
+    private val recoveryStore: DocumentRecoveryStore
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 
     init {
-        loadUserInfo()
+        refreshUserInfo()
         refresh()
     }
 
-    private fun loadUserInfo() {
+    fun refreshUserInfo() {
         _uiState.value = _uiState.value.copy(
             userName = sessionManager.userName.orEmpty(),
-            userPhoto = sessionManager.userPhoto
+            userPhoto = sessionManager.userPhoto,
+            pendingDocumentJobs = recoveryStore.pendingFor(sessionManager.userId)
         )
     }
 

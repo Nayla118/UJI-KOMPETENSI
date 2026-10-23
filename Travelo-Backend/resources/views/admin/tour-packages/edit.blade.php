@@ -176,22 +176,13 @@
                         </div>
 
                         <div class="space-y-2">
-                            <label for="rating" class="flex text-sm font-semibold text-slate-700 items-center gap-2">
+                            <span class="flex text-sm font-semibold text-slate-700 items-center gap-2">
                                 <span class="material-symbols-outlined text-primary text-base">star</span>
                                 Rating
-                            </label>
-                            <input
-                                type="number"
-                                id="rating"
-                                name="rating"
-                                value="{{ old('rating', $tourPackage->rating ?? 4.5) }}"
-                                class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none text-slate-700 bg-white"
-                                placeholder="4.5"
-                                min="0"
-                                max="5"
-                                step="0.1"
-                            >
-                            <p class="text-xs text-slate-500">0-5 scale</p>
+                            </span>
+                            <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                                Comes from published verified reviews of the destination.
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -365,8 +356,13 @@
                                     <span class="material-symbols-outlined text-primary">star</span>
                                 </div>
                                 <div>
-                                    <p class="text-2xl font-bold text-slate-800">{{ number_format($tourPackage->rating ?? 4.5, 1) }}</p>
-                                    <p class="text-xs text-slate-500 uppercase tracking-wide font-semibold">Rating</p>
+                                    @if (($tourPackage->destination?->reviews_count ?? 0) > 0)
+                                        <p class="text-2xl font-bold text-slate-800">{{ number_format($tourPackage->destination->reviews_avg_rating, 1) }}</p>
+                                        <p class="text-xs text-slate-500 uppercase tracking-wide font-semibold">Rating ({{ $tourPackage->destination->reviews_count }})</p>
+                                    @else
+                                        <p class="text-sm font-semibold text-slate-500">No reviews yet</p>
+                                        <p class="text-xs text-slate-500 uppercase tracking-wide font-semibold">Destination rating</p>
+                                    @endif
                                 </div>
                             </div>
                         </div>

@@ -22,9 +22,9 @@
             <li><strong>country</strong> (required) - Country name</li>
             <li><strong>description</strong> (optional) - Destination description</li>
             <li><strong>image</strong> (optional) - Image URL or path</li>
-            <li><strong>rating</strong> (optional) - Rating between 0-5</li>
             <li><strong>is_popular</strong> (optional) - true/false</li>
         </ul>
+        <p class="mt-3 text-xs text-blue-700">Ratings are not imported. They are calculated only from published reviews of travellers whose tickets were checked in.</p>
     </div>
 
     <!-- Upload Form -->

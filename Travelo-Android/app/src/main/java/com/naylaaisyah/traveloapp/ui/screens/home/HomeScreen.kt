@@ -26,6 +26,8 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -35,13 +37,22 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import coil.compose.AsyncImage
+import com.naylaaisyah.traveloapp.R
 import com.naylaaisyah.traveloapp.data.models.Destination
 import com.naylaaisyah.traveloapp.ui.components.TraveloBottomNav
+import com.naylaaisyah.traveloapp.ui.components.TraveloButton
+import com.naylaaisyah.traveloapp.ui.components.TraveloButtonSize
+import com.naylaaisyah.traveloapp.ui.components.TraveloButtonVariant
+import com.naylaaisyah.traveloapp.ui.components.TraveloCard
 import com.naylaaisyah.traveloapp.ui.components.TraveloDestinationCard
 import com.naylaaisyah.traveloapp.ui.components.TraveloEmptyState
 import com.naylaaisyah.traveloapp.ui.components.TraveloErrorState
@@ -65,9 +76,20 @@ fun HomeScreen(
     onProfileClick: () -> Unit,
     onMyBookingsClick: () -> Unit,
     onExploreClick: () -> Unit,
+    onCompleteDocuments: (Int) -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val pendingDocumentJob = uiState.pendingDocumentJobs.firstOrNull()
+
+    // Profile edits update the cached session immediately. Refresh the greeting
+    // whenever Home returns to the foreground so it never shows a stale name.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    LaunchedEffect(lifecycleOwner) {
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            viewModel.refreshUserInfo()
+        }
+    }
 
     val hasContent = uiState.popularDestinations.isNotEmpty() || uiState.featuredTours.isNotEmpty()
     val showInitialLoading = uiState.isLoading && !hasContent
@@ -143,6 +165,42 @@ fun HomeScreen(
                     userPhoto = uiState.userPhoto,
                     onProfileClick = onProfileClick
                 )
+            }
+
+            if (pendingDocumentJob != null) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    TraveloCard {
+                        Text(
+                            text = if (uiState.pendingDocumentJobs.size == 1) {
+                                stringResource(R.string.documents_banner_one)
+                            } else {
+                                stringResource(
+                                    R.string.documents_banner_many,
+                                    uiState.pendingDocumentJobs.size
+                                )
+                            },
+                            style = MaterialTheme.typography.titleSmall,
+                            color = PlumInk
+                        )
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            text = pendingDocumentJob.tourTitle
+                                .ifBlank { "Booking #${pendingDocumentJob.bookingId}" },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = PlumMuted
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        TraveloButton(
+                            text = stringResource(R.string.documents_action),
+                            onClick = {
+                                onCompleteDocuments(pendingDocumentJob.bookingId)
+                            },
+                            variant = TraveloButtonVariant.Secondary,
+                            size = TraveloButtonSize.Medium,
+                            leadingIcon = Icons.Default.Description
+                        )
+                    }
+                }
             }
 
             item(span = { GridItemSpan(maxLineSpan) }) {

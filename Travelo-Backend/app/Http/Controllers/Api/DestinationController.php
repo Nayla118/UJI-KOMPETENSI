@@ -4,7 +4,9 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\DestinationResource;
+use App\Http\Resources\TourPackageResource;
 use App\Models\Destination;
+use App\Models\TourPackage;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -34,11 +36,20 @@ class DestinationController extends Controller
                 $query->where('country', $request->country);
             }
 
-            $destinations = $query->latest()->paginate($request->per_page ?? 15);
+            $destinations = $query
+                ->withAvg('publishedReviews as reviews_avg_rating', 'rating')
+                ->withCount([
+                    'publishedReviews as reviews_count',
+                    'tourPackages',
+                ])
+                ->latest()
+                ->paginate($request->per_page ?? 15);
 
             return response()->json([
                 'success' => true,
-                'data' => $destinations->items(),
+                'data' => $destinations->getCollection()
+                    ->map(fn (Destination $destination) => (new DestinationResource($destination))->resolve())
+                    ->values(),
                 'meta' => [
                     'current_page' => $destinations->currentPage(),
                     'last_page' => $destinations->lastPage(),
@@ -66,25 +77,21 @@ class DestinationController extends Controller
         try {
             // Get all destinations (without is_popular filter since column doesn't exist)
             // Just get the latest 6 destinations as "popular"
-            $destinations = Destination::latest()
+            $destinations = Destination::query()
+                ->withAvg('publishedReviews as reviews_avg_rating', 'rating')
+                ->withCount([
+                    'publishedReviews as reviews_count',
+                    'tourPackages',
+                ])
+                ->latest()
                 ->take($request->limit ?? 6)
                 ->get();
 
             return response()->json([
                 'success' => true,
-                'data' => $destinations->map(function ($destination) {
-                    return [
-                        'id' => $destination->id,
-                        'name' => $destination->name,
-                        'city' => $destination->city,
-                        'country' => $destination->country,
-                        'description' => $destination->description,
-                        'image' => $destination->image,
-                        'rating' => $destination->rating,
-                        'created_at' => $destination->created_at,
-                        'updated_at' => $destination->updated_at,
-                    ];
-                }),
+                'data' => $destinations
+                    ->map(fn (Destination $destination) => (new DestinationResource($destination))->resolve())
+                    ->values(),
             ]);
         } catch (\Exception $e) {
             // Log the error and return empty array instead of 500 error
@@ -105,11 +112,25 @@ class DestinationController extends Controller
     public function show(int $id): JsonResponse
     {
         try {
-            $destination = Destination::with(['tourPackages'])->findOrFail($id);
+            $destination = Destination::query()
+                ->with(['tourPackages' => fn ($query) => $query->withCount('bookings')])
+                ->withAvg('publishedReviews as reviews_avg_rating', 'rating')
+                ->withCount([
+                    'publishedReviews as reviews_count',
+                    'tourPackages',
+                ])
+                ->findOrFail($id);
+
+            $payload = (new DestinationResource($destination))->resolve();
+            $payload['tour_packages'] = $destination->tourPackages
+                ->map(fn (TourPackage $package) => (new TourPackageResource(
+                    $package->setRelation('destination', $destination)
+                ))->resolve())
+                ->values();
 
             return response()->json([
                 'success' => true,
-                'data' => $destination,
+                'data' => $payload,
             ]);
         } catch (\Exception $e) {
             \Log::error('Destination show error: ' . $e->getMessage());

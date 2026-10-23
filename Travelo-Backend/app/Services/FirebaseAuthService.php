@@ -56,7 +56,11 @@ class FirebaseAuthService
             if ($user) {
                 $user->update([
                     'firebase_uid' => $firebaseUid,
-                    'photo' => $photoUrl ?? $user->photo,
+                    // A locally uploaded profile photo wins over the provider
+                    // picture so signing in again does not replace it.
+                    'photo' => $user->hasCustomPhoto()
+                        ? $user->getRawOriginal('photo')
+                        : ($photoUrl ?? $user->getRawOriginal('photo')),
                 ]);
                 Log::info('Updated existing user with firebase_uid', ['user_id' => $user->id, 'firebase_uid' => $firebaseUid]);
             } else {
@@ -69,11 +73,16 @@ class FirebaseAuthService
                 Log::info('Created new user', ['user_id' => $user->id]);
             }
         } else {
+            // The local name and a custom profile photo are editable in the
+            // app, so a later sign-in must not overwrite them with provider
+            // values. Refresh the provider photo only when no custom upload
+            // exists.
             $user->update([
-                'name' => $name ?? $user->name,
-                'photo' => $photoUrl ?? $user->photo,
+                'photo' => $user->hasCustomPhoto()
+                    ? $user->getRawOriginal('photo')
+                    : ($photoUrl ?? $user->getRawOriginal('photo')),
             ]);
-            Log::info('User already exists, updated info', ['user_id' => $user->id, 'firebase_uid' => $firebaseUid]);
+            Log::info('User already exists, refreshed provider photo', ['user_id' => $user->id, 'firebase_uid' => $firebaseUid]);
         }
 
         return [

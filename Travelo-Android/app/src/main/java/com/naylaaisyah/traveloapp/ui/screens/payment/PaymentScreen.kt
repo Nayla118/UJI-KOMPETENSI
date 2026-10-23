@@ -100,6 +100,7 @@ fun PaymentScreen(
         val token = uiState.snapTokenToLaunch ?: return@LaunchedEffect
         val intent = android.content.Intent(context, PaymentWebViewActivity::class.java).apply {
             putExtra(PaymentWebViewActivity.EXTRA_SNAP_TOKEN, token)
+            putExtra(PaymentWebViewActivity.EXTRA_BOOKING_ID, bookingId)
             putExtra(PaymentWebViewActivity.EXTRA_IS_SANDBOX, true)
         }
         viewModel.onTokenConsumed()

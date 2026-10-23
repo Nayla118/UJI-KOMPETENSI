@@ -33,7 +33,10 @@ return [
         'local' => [
             'driver' => 'local',
             'root' => storage_path('app/private'),
-            'serve' => true,
+            // Identity documents live on this disk. Do not let Laravel
+            // auto-register a signed /storage route for private files; the
+            // app only serves them through authenticated controller actions.
+            'serve' => false,
             'throw' => false,
             'report' => false,
         ],

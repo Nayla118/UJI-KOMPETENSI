@@ -21,6 +21,8 @@ import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -28,12 +30,19 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.naylaaisyah.traveloapp.R
+import com.naylaaisyah.traveloapp.ui.components.ReviewEditorDialog
 import com.naylaaisyah.traveloapp.ui.components.TraveloEmptyState
 import com.naylaaisyah.traveloapp.ui.components.TraveloErrorState
 import com.naylaaisyah.traveloapp.ui.components.TraveloIconButton
@@ -41,6 +50,9 @@ import com.naylaaisyah.traveloapp.ui.components.TraveloImage
 import com.naylaaisyah.traveloapp.ui.components.TraveloInlineLoading
 import com.naylaaisyah.traveloapp.ui.components.TraveloLoadingState
 import com.naylaaisyah.traveloapp.ui.components.TraveloRatingBadge
+import com.naylaaisyah.traveloapp.ui.components.TraveloReviewCard
+import com.naylaaisyah.traveloapp.ui.components.TraveloReviewEligibilityCard
+import com.naylaaisyah.traveloapp.ui.components.TraveloReviewSummaryCard
 import com.naylaaisyah.traveloapp.ui.components.TraveloSectionHeader
 import com.naylaaisyah.traveloapp.ui.components.TraveloTourPackageRow
 import com.naylaaisyah.traveloapp.ui.theme.PlumInk
@@ -64,12 +76,26 @@ fun DestinationDetailScreen(
     viewModel: DestinationDetailViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val reviewSavedMessage = stringResource(R.string.review_saved)
+    var showReviewDialog by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(destinationId) {
         viewModel.loadDestination(destinationId)
     }
 
-    Scaffold(containerColor = VanillaCream) { innerPadding ->
+    LaunchedEffect(uiState.reviewSaved) {
+        if (uiState.reviewSaved) {
+            showReviewDialog = false
+            snackbarHostState.showSnackbar(reviewSavedMessage)
+            viewModel.consumeReviewSaved()
+        }
+    }
+
+    Scaffold(
+        containerColor = VanillaCream,
+        snackbarHost = { SnackbarHost(snackbarHostState) }
+    ) { innerPadding ->
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -82,7 +108,13 @@ fun DestinationDetailScreen(
                     state = uiState,
                     onBackClick = onBackClick,
                     onTourPackageClick = onTourPackageClick,
-                    onRetryTours = viewModel::retryTourPackages
+                    onRetryTours = viewModel::retryTourPackages,
+                    onRetryReviews = viewModel::retryReviews,
+                    onLoadMoreReviews = viewModel::loadMoreReviews,
+                    onRateClick = {
+                        viewModel.clearReviewActionError()
+                        showReviewDialog = true
+                    }
                 )
 
                 uiState.error != null -> DetailError(
@@ -95,6 +127,39 @@ fun DestinationDetailScreen(
             }
         }
     }
+
+    val eligibility = uiState.eligibility
+    val existingReview = eligibility?.review
+
+    if (showReviewDialog && eligibility != null) {
+        ReviewEditorDialog(
+            title = stringResource(
+                if (existingReview != null) {
+                    R.string.review_dialog_edit_title
+                } else {
+                    R.string.review_dialog_new_title
+                }
+            ),
+            initialRating = existingReview?.rating ?: 5,
+            initialComment = existingReview?.comment,
+            confirmLabel = stringResource(
+                if (existingReview != null) {
+                    R.string.review_save
+                } else {
+                    R.string.review_publish
+                }
+            ),
+            isSaving = uiState.isSavingReview,
+            error = uiState.reviewActionError,
+            onDismiss = {
+                if (!uiState.isSavingReview) {
+                    showReviewDialog = false
+                    viewModel.clearReviewActionError()
+                }
+            },
+            onSubmit = { rating, comment -> viewModel.saveReview(rating, comment) }
+        )
+    }
 }
 
 @Composable
@@ -102,7 +167,10 @@ private fun DestinationContent(
     state: DestinationDetailUiState,
     onBackClick: () -> Unit,
     onTourPackageClick: (Int) -> Unit,
-    onRetryTours: () -> Unit
+    onRetryTours: () -> Unit,
+    onRetryReviews: () -> Unit,
+    onLoadMoreReviews: () -> Unit,
+    onRateClick: () -> Unit
 ) {
     val destination = state.destination ?: return
 
@@ -190,6 +258,145 @@ private fun DestinationContent(
 
                 Spacer(Modifier.height(TraveloSpacing.lg))
 
+                TraveloSectionHeader(title = stringResource(R.string.reviews_title))
+                Spacer(Modifier.height(TraveloSpacing.xxs))
+            }
+        }
+
+        when {
+            state.isReviewsLoading -> {
+                item { TraveloInlineLoading() }
+            }
+
+            state.reviewsError != null -> {
+                item {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(
+                                horizontal = TraveloSpacing.screen,
+                                vertical = TraveloSpacing.xs
+                            ),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = stringResource(R.string.review_load_failed),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = PlumMuted,
+                            modifier = Modifier.weight(1f)
+                        )
+                        TextButton(onClick = onRetryReviews) {
+                            Text(
+                                text = stringResource(R.string.review_retry),
+                                style = MaterialTheme.typography.labelLarge,
+                                color = Rosewood
+                            )
+                        }
+                    }
+                }
+            }
+
+            else -> {
+                if (state.reviewSummary.count > 0) {
+                    item {
+                        TraveloReviewSummaryCard(
+                            summary = state.reviewSummary,
+                            modifier = Modifier.padding(
+                                horizontal = TraveloSpacing.screen,
+                                vertical = TraveloSpacing.xxs
+                            )
+                        )
+                    }
+                }
+
+                state.eligibility?.let { eligibility ->
+                    item {
+                        TraveloReviewEligibilityCard(
+                            eligibility = eligibility,
+                            onRateClick = onRateClick,
+                            modifier = Modifier.padding(
+                                horizontal = TraveloSpacing.screen,
+                                vertical = TraveloSpacing.xs
+                            )
+                        )
+                    }
+                }
+
+                if (state.reviews.isEmpty()) {
+                    item {
+                        TraveloEmptyState(
+                            title = stringResource(R.string.review_empty_title),
+                            message = stringResource(R.string.review_empty_message),
+                            horizontalPadding = TraveloSpacing.screen
+                        )
+                    }
+                } else {
+                    items(state.reviews, key = { "review-${it.id}" }) { review ->
+                        TraveloReviewCard(
+                            review = review,
+                            modifier = Modifier.padding(
+                                horizontal = TraveloSpacing.screen,
+                                vertical = TraveloSpacing.xs
+                            )
+                        )
+                    }
+
+                    when {
+                        state.isLoadingMoreReviews -> {
+                            item { TraveloInlineLoading() }
+                        }
+
+                        state.loadMoreReviewsError != null -> {
+                            item {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(
+                                            horizontal = TraveloSpacing.screen,
+                                            vertical = TraveloSpacing.xs
+                                        ),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = stringResource(R.string.review_load_more_failed),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = PlumMuted,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    TextButton(onClick = onLoadMoreReviews) {
+                                        Text(
+                                            text = stringResource(R.string.review_retry),
+                                            style = MaterialTheme.typography.labelLarge,
+                                            color = Rosewood
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        state.reviewMeta.currentPage < state.reviewMeta.lastPage -> {
+                            item {
+                                TextButton(
+                                    onClick = onLoadMoreReviews,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = TraveloSpacing.screen)
+                                ) {
+                                    Text(
+                                        text = stringResource(R.string.review_load_more),
+                                        color = Rosewood
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        item {
+            Column(modifier = Modifier.padding(horizontal = TraveloSpacing.screen)) {
+                Spacer(Modifier.height(TraveloSpacing.lg))
                 TraveloSectionHeader(title = "Tour packages")
                 Spacer(Modifier.height(TraveloSpacing.xxs))
             }

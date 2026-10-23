@@ -6,7 +6,10 @@
     <string name="eticket_close">Close e-ticket</string>
     <string name="eticket_qr_description">Verified QR code for %1$s</string>
     <string name="eticket_qr_error">QR code could not be generated on this device.</string>
-    <string name="eticket_verified">Verified by Travelo</string>
+    <string name="eticket_verified">Active ticket</string>
+    <string name="eticket_status_used">Ticket already used</string>
+    <string name="eticket_status_expired">Ticket expired</string>
+    <string name="eticket_destination">Destination</string>
     <string name="eticket_travel_date">Travel date</string>
     <string name="eticket_travelers_label">Travelers</string>
     <plurals name="eticket_travelers">
@@ -26,7 +29,109 @@
     <string name="eticket_view">View e-ticket</string>
     <string name="eticket_tour_package">Tour package</string>
     <string name="eticket_load_failed">Couldn\'t load your e-ticket. Please try again.</string>
+
+    <!-- Ticket history -->
+    <string name="ticket_history_title">Ticket history</string>
+    <string name="ticket_history_open">Open ticket history</string>
+    <string name="ticket_history_refresh">Refresh ticket history</string>
+    <string name="ticket_history_view">View ticket history</string>
+    <string name="ticket_history_empty_title">No ticket history yet</string>
+    <string name="ticket_history_empty_message">Tickets you have used, or visits that have expired, will appear here.</string>
+    <string name="ticket_history_no_active_title">No active bookings</string>
+    <string name="ticket_history_no_active_message">Your used or expired tickets are now in Ticket history.</string>
+    <string name="ticket_history_load_failed">Couldn\'t load ticket history</string>
+    <string name="ticket_history_used_on">Used on %1$s</string>
+    <string name="ticket_history_used_note">This ticket has already been scanned at the gate.</string>
+    <string name="ticket_history_expired_note">This visit date has passed. The ticket can no longer be used for entry.</string>
+    <string name="ticket_history_tour_fallback">Tour package</string>
+    <string name="ticket_history_booking_number">Booking #%1$d</string>
+
+    <!-- Verified-visit reviews -->
+    <string name="reviews_title">Traveller reviews</string>
+    <plurals name="review_count">
+        <item quantity="one">%1$d review</item>
+        <item quantity="other">%1$d reviews</item>
+    </plurals>
+    <string name="review_no_ratings">No ratings yet</string>
+    <string name="review_guest_name">Travelo traveller</string>
+    <string name="review_verified_visit">Verified visit</string>
+    <string name="review_status_eligible_title">Your visit is verified</string>
+    <string name="review_status_eligible_message">Your ticket was scanned at the gate. Share an honest rating of your trip.</string>
+    <string name="review_not_checked_in_title">Rating not unlocked yet</string>
+    <string name="review_not_checked_in_message">Rating unlocks after your ticket is scanned at the gate.</string>
+    <string name="review_unpaid_title">Payment not confirmed</string>
+    <string name="review_unpaid_message">Only paid and confirmed bookings can be reviewed.</string>
+    <string name="review_not_booked_title">No verified visit yet</string>
+    <string name="review_not_booked_message">Book, pay, and check in at this destination to leave a review.</string>
+    <string name="review_cancelled_title">This booking was cancelled</string>
+    <string name="review_cancelled_message">Cancelled or refunded bookings cannot be reviewed.</string>
+    <string name="review_already_reviewed_title">Thanks for your review</string>
+    <string name="review_already_reviewed_message">You can edit your published review at any time from this page or Ticket history.</string>
+    <string name="review_under_moderation_title">Review under moderation</string>
+    <string name="review_under_moderation_message">Your review is not public while our team checks it.</string>
+    <string name="review_under_moderation_short">Your review is under moderation.</string>
+    <string name="review_hidden_help">Hidden reviews cannot be edited or deleted.</string>
+    <string name="review_rate_visit">Rate your visit</string>
+    <string name="review_edit">Edit review</string>
+    <string name="review_delete">Delete</string>
+    <string name="review_dialog_new_title">Rate your visit</string>
+    <string name="review_dialog_edit_title">Edit your review</string>
+    <string name="review_stars_prompt">How was your visit?</string>
+    <string name="review_star_content">Rate %1$d out of 5</string>
+    <string name="review_comment_label">Comment (optional)</string>
+    <string name="review_comment_placeholder">What stood out?</string>
+    <string name="review_comment_count">%1$d/1000</string>
+    <string name="review_publish">Publish review</string>
+    <string name="review_save">Save changes</string>
+    <string name="review_cancel">Cancel</string>
+    <string name="review_loading">Loading reviews…</string>
+    <string name="review_load_failed">Couldn\'t load reviews.</string>
+    <string name="review_load_more">Show more reviews</string>
+    <string name="review_load_more_failed">Couldn\'t load more reviews.</string>
+    <string name="review_retry">Retry</string>
+    <string name="review_empty_title">No reviews yet</string>
+    <string name="review_empty_message">Verified reviews from checked-in travellers will appear here.</string>
+    <string name="review_my_rating">You rated %1$d out of 5</string>
+    <string name="review_not_eligible_short">This visit is not eligible for a review.</string>
+    <string name="review_superseded_short">A newer visit has already been reviewed. No need to rate this older visit again.</string>
+    <string name="review_delete_title">Delete your review?</string>
+    <string name="review_delete_message">Your rating and comment will be removed. This cannot be undone.</string>
+    <string name="review_delete_confirm">Delete review</string>
+    <string name="review_saved">Review published.</string>
+    <string name="review_updated">Review updated.</string>
+    <string name="review_deleted">Review deleted.</string>
+
+    <!-- Scanned-ticket notice -->
+    <string name="ticket_scanned_title">Ticket scanned</string>
+    <string name="ticket_scanned_message">Your ticket for %1$s was scanned at the gate. It has moved from My bookings to Ticket history.</string>
+    <string name="ticket_scanned_view_history">View ticket history</string>
+    <string name="ticket_scanned_dismiss">Got it</string>
+
     <string name="session_expired">Your session has expired. Please sign in again.</string>
     <string name="offline_message">You\'re offline. Check your internet connection.</string>
     <string name="retry">Retry</string>
+
+    <!-- Identity document recovery -->
+    <string name="documents_title">Lengkapi Dokumen</string>
+    <string name="documents_action">Lengkapi Dokumen</string>
+    <string name="documents_intro">Your booking was saved. Upload the remaining identity documents to continue; a new booking will not be created.</string>
+    <string name="documents_upload">Upload documents</string>
+    <string name="documents_uploading">Uploading documents…</string>
+    <string name="documents_pick">Choose document</string>
+    <string name="documents_replace">Replace</string>
+    <string name="documents_remove">Remove selection</string>
+    <string name="documents_private_note">Stored privately. A successful upload is marked waiting for review, not verified automatically.</string>
+    <string name="documents_all_complete_title">All documents are on file</string>
+    <string name="documents_all_complete_message">The identity documents for this booking are complete. You can return to My Bookings.</string>
+    <string name="documents_back">Back to My Bookings</string>
+    <string name="documents_load_failed">Couldn\'t load this booking</string>
+    <string name="documents_status_missing">No document yet</string>
+    <string name="documents_status_pending">Waiting for review</string>
+    <string name="documents_status_verified">Document reviewed</string>
+    <string name="documents_status_rejected">Document rejected</string>
+    <string name="documents_status_purged">Document removed after retention</string>
+    <string name="documents_need_attention">This booking still needs identity documents.</string>
+    <string name="documents_banner_one">1 booking needs identity documents</string>
+    <string name="documents_banner_many">%1$d bookings need identity documents</string>
+    <string name="documents_file_unreadable">One selected file could not be read. Choose it again and retry.</string>
 </resources>

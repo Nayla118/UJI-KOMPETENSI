@@ -19,6 +19,7 @@ import androidx.navigation.compose.rememberNavController
 import com.naylaaisyah.traveloapp.ui.ConnectivityViewModel
 import com.naylaaisyah.traveloapp.ui.components.TraveloOfflineBanner
 import com.naylaaisyah.traveloapp.ui.navigation.NavGraph
+import com.naylaaisyah.traveloapp.ui.navigation.Screen
 import com.naylaaisyah.traveloapp.ui.screens.auth.LoginActivity
 import com.naylaaisyah.traveloapp.ui.theme.TraveloAppTheme
 import com.naylaaisyah.traveloapp.util.SessionManager
@@ -41,13 +42,7 @@ class MainActivity : ComponentActivity() {
 
                 LaunchedEffect(Unit) {
                     sessionManager.sessionExpired.collect {
-                        startActivity(
-                            Intent(this@MainActivity, LoginActivity::class.java).apply {
-                                flags = Intent.FLAG_ACTIVITY_NEW_TASK or
-                                    Intent.FLAG_ACTIVITY_CLEAR_TASK
-                            }
-                        )
-                        finish()
+                        returnToLogin()
                     }
                 }
 
@@ -65,11 +60,40 @@ class MainActivity : ComponentActivity() {
                                 .fillMaxWidth()
                                 .weight(1f)
                         ) {
-                            NavGraph(navController = navController)
+                            NavGraph(
+                                navController = navController,
+                                startDestination = if (sessionManager.isLoggedIn()) {
+                                    Screen.Home.route
+                                } else {
+                                    Screen.Login.route
+                                },
+                                onLogout = ::returnToLogin
+                            )
                         }
                     }
                 }
             }
         }
+    }
+
+    /**
+     * Logout and expired-session paths both start a clean auth task. This
+     * prevents the authenticated back stack (and its cached profile state)
+     * from being reachable after the session is gone.
+     */
+    private fun returnToLogin() {
+        if (isFinishing || isDestroyed) return
+
+        // Defense in depth: both explicit logout and an expired session must
+        // leave no token behind, even if the caller already cleared it.
+        sessionManager.clearSession()
+
+        startActivity(
+            Intent(this, LoginActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or
+                    Intent.FLAG_ACTIVITY_CLEAR_TASK
+            }
+        )
+        finish()
     }
 }

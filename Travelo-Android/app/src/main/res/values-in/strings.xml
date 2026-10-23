@@ -6,7 +6,10 @@
     <string name="eticket_close">Tutup e-tiket</string>
     <string name="eticket_qr_description">Kode QR terverifikasi untuk %1$s</string>
     <string name="eticket_qr_error">Kode QR tidak dapat dibuat di perangkat ini.</string>
-    <string name="eticket_verified">Terverifikasi oleh Travelo</string>
+    <string name="eticket_verified">Tiket aktif</string>
+    <string name="eticket_status_used">Tiket sudah digunakan</string>
+    <string name="eticket_status_expired">Tiket kedaluwarsa</string>
+    <string name="eticket_destination">Destinasi</string>
     <string name="eticket_travel_date">Tanggal perjalanan</string>
     <string name="eticket_travelers_label">Jumlah traveler</string>
     <plurals name="eticket_travelers">
@@ -24,7 +27,109 @@
     <string name="eticket_view">Lihat e-tiket</string>
     <string name="eticket_tour_package">Paket tur</string>
     <string name="eticket_load_failed">E-tiket tidak dapat dimuat. Silakan coba lagi.</string>
+
+    <!-- Ticket history -->
+    <string name="ticket_history_title">Riwayat tiket</string>
+    <string name="ticket_history_open">Buka riwayat tiket</string>
+    <string name="ticket_history_refresh">Muat ulang riwayat tiket</string>
+    <string name="ticket_history_view">Lihat riwayat tiket</string>
+    <string name="ticket_history_empty_title">Belum ada riwayat tiket</string>
+    <string name="ticket_history_empty_message">Tiket yang sudah digunakan atau kunjungan yang sudah lewat akan muncul di sini.</string>
+    <string name="ticket_history_no_active_title">Tidak ada booking aktif</string>
+    <string name="ticket_history_no_active_message">Tiket yang sudah digunakan atau kedaluwarsa sekarang ada di Riwayat tiket.</string>
+    <string name="ticket_history_load_failed">Riwayat tiket tidak dapat dimuat</string>
+    <string name="ticket_history_used_on">Digunakan pada %1$s</string>
+    <string name="ticket_history_used_note">Tiket ini sudah dipindai di gerbang.</string>
+    <string name="ticket_history_expired_note">Tanggal kunjungan sudah lewat. Tiket tidak dapat digunakan lagi untuk masuk.</string>
+    <string name="ticket_history_tour_fallback">Paket tur</string>
+    <string name="ticket_history_booking_number">Booking #%1$d</string>
+
+    <!-- Verified-visit reviews -->
+    <string name="reviews_title">Ulasan pelancong</string>
+    <plurals name="review_count">
+        <item quantity="one">%1$d ulasan</item>
+        <item quantity="other">%1$d ulasan</item>
+    </plurals>
+    <string name="review_no_ratings">Belum ada penilaian</string>
+    <string name="review_guest_name">Pelancong Travelo</string>
+    <string name="review_verified_visit">Kunjungan terverifikasi</string>
+    <string name="review_status_eligible_title">Kunjungan Anda terverifikasi</string>
+    <string name="review_status_eligible_message">Tiket Anda sudah dipindai di gerbang. Bagikan penilaian jujur tentang perjalanan Anda.</string>
+    <string name="review_not_checked_in_title">Penilaian belum terbuka</string>
+    <string name="review_not_checked_in_message">Penilaian terbuka setelah tiket Anda dipindai di gerbang.</string>
+    <string name="review_unpaid_title">Pembayaran belum dikonfirmasi</string>
+    <string name="review_unpaid_message">Hanya booking yang sudah dibayar dan dikonfirmasi yang dapat diulas.</string>
+    <string name="review_not_booked_title">Belum ada kunjungan terverifikasi</string>
+    <string name="review_not_booked_message">Pesan, bayar, dan check-in di destinasi ini untuk menulis ulasan.</string>
+    <string name="review_cancelled_title">Booking ini dibatalkan</string>
+    <string name="review_cancelled_message">Booking yang dibatalkan atau dikembalikan dananya tidak dapat diulas.</string>
+    <string name="review_already_reviewed_title">Terima kasih atas ulasan Anda</string>
+    <string name="review_already_reviewed_message">Anda dapat mengubah ulasan yang sudah tayang kapan saja dari halaman ini atau Riwayat tiket.</string>
+    <string name="review_under_moderation_title">Ulasan sedang ditinjau</string>
+    <string name="review_under_moderation_message">Ulasan Anda belum tampil publik selama tim kami memeriksanya.</string>
+    <string name="review_under_moderation_short">Ulasan Anda sedang ditinjau.</string>
+    <string name="review_hidden_help">Ulasan yang disembunyikan tidak dapat diubah atau dihapus.</string>
+    <string name="review_rate_visit">Nilai kunjungan Anda</string>
+    <string name="review_edit">Edit ulasan</string>
+    <string name="review_delete">Hapus</string>
+    <string name="review_dialog_new_title">Nilai kunjungan Anda</string>
+    <string name="review_dialog_edit_title">Edit ulasan Anda</string>
+    <string name="review_stars_prompt">Bagaimana kunjungan Anda?</string>
+    <string name="review_star_content">Beri nilai %1$d dari 5</string>
+    <string name="review_comment_label">Komentar (opsional)</string>
+    <string name="review_comment_placeholder">Apa yang paling berkesan?</string>
+    <string name="review_comment_count">%1$d/1000</string>
+    <string name="review_publish">Terbitkan ulasan</string>
+    <string name="review_save">Simpan perubahan</string>
+    <string name="review_cancel">Batal</string>
+    <string name="review_loading">Memuat ulasan…</string>
+    <string name="review_load_failed">Ulasan tidak dapat dimuat.</string>
+    <string name="review_load_more">Tampilkan ulasan lainnya</string>
+    <string name="review_load_more_failed">Ulasan lainnya tidak dapat dimuat.</string>
+    <string name="review_retry">Coba lagi</string>
+    <string name="review_empty_title">Belum ada ulasan</string>
+    <string name="review_empty_message">Ulasan terverifikasi dari pelancong yang sudah check-in akan muncul di sini.</string>
+    <string name="review_my_rating">Anda memberi %1$d dari 5</string>
+    <string name="review_not_eligible_short">Kunjungan ini tidak memenuhi syarat untuk diulas.</string>
+    <string name="review_superseded_short">Kunjungan yang lebih baru sudah diulas. Tidak perlu menilai kunjungan lama ini lagi.</string>
+    <string name="review_delete_title">Hapus ulasan Anda?</string>
+    <string name="review_delete_message">Penilaian dan komentar Anda akan dihapus. Tindakan ini tidak dapat dibatalkan.</string>
+    <string name="review_delete_confirm">Hapus ulasan</string>
+    <string name="review_saved">Ulasan diterbitkan.</string>
+    <string name="review_updated">Ulasan diperbarui.</string>
+    <string name="review_deleted">Ulasan dihapus.</string>
+
+    <!-- Scanned-ticket notice -->
+    <string name="ticket_scanned_title">Tiket sudah dipindai</string>
+    <string name="ticket_scanned_message">Tiket untuk %1$s sudah dipindai di gerbang. Tiket sudah dipindahkan dari Booking Saya ke Riwayat tiket.</string>
+    <string name="ticket_scanned_view_history">Lihat riwayat tiket</string>
+    <string name="ticket_scanned_dismiss">Mengerti</string>
+
     <string name="session_expired">Sesi kamu sudah berakhir. Silakan masuk lagi.</string>
     <string name="offline_message">Kamu sedang offline. Periksa koneksi internet kamu.</string>
     <string name="retry">Coba lagi</string>
+
+    <!-- Identity document recovery -->
+    <string name="documents_title">Lengkapi Dokumen</string>
+    <string name="documents_action">Lengkapi Dokumen</string>
+    <string name="documents_intro">Booking kamu sudah tersimpan. Unggah dokumen identitas yang masih kurang untuk melanjutkan; booking baru tidak akan dibuat.</string>
+    <string name="documents_upload">Unggah dokumen</string>
+    <string name="documents_uploading">Mengunggah dokumen…</string>
+    <string name="documents_pick">Pilih dokumen</string>
+    <string name="documents_replace">Ganti</string>
+    <string name="documents_remove">Hapus pilihan</string>
+    <string name="documents_private_note">Disimpan secara privat. Unggahan yang berhasil berstatus menunggu pemeriksaan, bukan otomatis terverifikasi.</string>
+    <string name="documents_all_complete_title">Semua dokumen sudah lengkap</string>
+    <string name="documents_all_complete_message">Dokumen identitas untuk booking ini sudah lengkap. Kamu bisa kembali ke Booking Saya.</string>
+    <string name="documents_back">Kembali ke Booking Saya</string>
+    <string name="documents_load_failed">Booking tidak dapat dimuat</string>
+    <string name="documents_status_missing">Belum ada dokumen</string>
+    <string name="documents_status_pending">Menunggu pemeriksaan</string>
+    <string name="documents_status_verified">Dokumen diperiksa</string>
+    <string name="documents_status_rejected">Dokumen ditolak</string>
+    <string name="documents_status_purged">Dokumen dihapus (retensi)</string>
+    <string name="documents_need_attention">Booking ini masih membutuhkan dokumen identitas.</string>
+    <string name="documents_banner_one">1 booking membutuhkan dokumen identitas</string>
+    <string name="documents_banner_many">%1$d booking membutuhkan dokumen identitas</string>
+    <string name="documents_file_unreadable">Salah satu file tidak dapat dibaca. Pilih ulang lalu coba lagi.</string>
 </resources>

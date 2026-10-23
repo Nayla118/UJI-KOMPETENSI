@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin sign in | Travelo</title>
+    <link rel="icon" type="image/png" href="/images/logos/travelo-favicon.png">
+    <link rel="apple-touch-icon" href="/images/logos/travelo-logo-192.png">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -15,7 +17,7 @@
 <body class="min-h-screen bg-cream font-sans text-ink flex items-center justify-center px-4 py-10">
     <div class="w-full max-w-md">
         <div class="text-center mb-8">
-            <img src="/images/logos/travelo-logo-primary.svg" alt="Travelo" class="h-12 w-auto mx-auto" width="192" height="48">
+            <img src="/images/logos/travelo-logo-primary.png" alt="Travelo" class="h-28 w-28 mx-auto" width="112" height="112">
             <p class="text-sm font-medium text-muted mt-3">Admin console</p>
         </div>
 

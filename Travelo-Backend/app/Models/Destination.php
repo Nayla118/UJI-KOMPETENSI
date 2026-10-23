@@ -56,4 +56,18 @@ class Destination extends Model
     {
         return $this->hasMany(TourPackage::class);
     }
+
+    public function reviews(): HasMany
+    {
+        return $this->hasMany(Review::class);
+    }
+
+    /**
+     * Only published reviews are allowed to influence public ratings.
+     */
+    public function publishedReviews(): HasMany
+    {
+        return $this->hasMany(Review::class)
+            ->where('status', Review::STATUS_PUBLISHED);
+    }
 }

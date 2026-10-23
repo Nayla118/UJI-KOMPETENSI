@@ -14,6 +14,16 @@ class TourPackageResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        $destination = $this->relationLoaded('destination') ? $this->destination : null;
+        $reviewCount = $destination !== null
+            ? (int) ($destination->reviews_count ?? 0)
+            : 0;
+        $average = $destination !== null
+            && $destination->reviews_avg_rating !== null
+            && $reviewCount > 0
+            ? round((float) $destination->reviews_avg_rating, 2)
+            : null;
+
         return [
             'id' => $this->id,
             'destination_id' => $this->destination_id,
@@ -26,7 +36,9 @@ class TourPackageResource extends JsonResource
             'max_people' => (int) $this->max_people,
             'image' => $this->imageUrl,
             'image_path' => $this->image,
-            'rating' => (float) $this->rating,
+            // A package inherits the published aggregate of its destination.
+            'rating' => $average,
+            'review_count' => $reviewCount,
             'bookings_count' => $this->whenCounted('bookings', $this->bookings_count ?? $this->bookings->count()),
             'created_at' => $this->created_at?->toIso8601String(),
             'updated_at' => $this->updated_at?->toIso8601String(),

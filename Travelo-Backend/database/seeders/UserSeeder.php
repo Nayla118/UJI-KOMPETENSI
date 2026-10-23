@@ -25,6 +25,7 @@ class UserSeeder extends Seeder
             [
                 'name' => env('TRAVELO_ADMIN_NAME', 'Admin Travelo'),
                 'password' => Hash::make($password),
+                'role' => User::ROLE_ADMIN,
                 'firebase_uid' => env('TRAVELO_ADMIN_FIREBASE_UID', 'admin-uid-001'),
                 'photo' => null,
                 'email_verified_at' => now(),

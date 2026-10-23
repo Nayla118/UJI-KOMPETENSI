@@ -16,6 +16,10 @@ sealed class Screen(val route: String) {
             "booking/$tourPackageId/${java.net.URLEncoder.encode(title, "UTF-8")}/$price/$maxPeople"
     }
     data object MyBookings : Screen("my_bookings")
+    data object TicketHistory : Screen("ticket_history")
+    data object CompleteDocuments : Screen("complete_documents/{bookingId}") {
+        fun createRoute(bookingId: Int) = "complete_documents/$bookingId"
+    }
     data object Profile : Screen("profile")
     data object Payment : Screen("payment/{bookingId}") {
         fun createRoute(bookingId: Int) = "payment/$bookingId"

@@ -21,7 +21,7 @@
                 </div>
             </div>
             <p class="text-gray-600 text-sm mb-4">
-                Import multiple destinations at once using a CSV file. The file should contain columns: name, city, country (required), description, image, rating, is_popular.
+                Import multiple destinations at once using a CSV file. The file should contain columns: name, city, country (required), description, image, is_popular. Ratings are never imported; they come only from verified reviews.
             </p>
             <a href="{{ route('admin.import.destinations') }}" class="inline-flex items-center gap-2 bg-primary hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

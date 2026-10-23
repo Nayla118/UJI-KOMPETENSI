@@ -21,8 +21,29 @@ class LoginController extends Controller
         ]);
 
         if (Auth::attempt($credentials, $request->boolean('remember'))) {
+            // The web panel is for operational roles only. A local-password
+            // traveller account must not receive an authenticated admin
+            // session, even before route-level role middleware runs.
+            if (!$request->user()->isStaffOrAdmin()) {
+                Auth::logout();
+                $request->session()->invalidate();
+                $request->session()->regenerateToken();
+
+                return back()->withErrors([
+                    'email' => 'Email atau password salah.',
+                ])->onlyInput('email');
+            }
+
             $request->session()->regenerate();
-            return redirect()->intended(route('admin.dashboard'));
+
+            // Gate staff cannot open the admin-only management screens, so
+            // always land on the scanner instead of a 403 dashboard (even if
+            // an earlier request stored an inaccessible intended URL).
+            if ($request->user()->isAdmin()) {
+                return redirect()->intended(route('admin.dashboard'));
+            }
+
+            return redirect()->route('admin.scanner');
         }
 
         return back()->withErrors([

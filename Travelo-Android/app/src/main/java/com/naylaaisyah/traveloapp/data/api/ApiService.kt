@@ -1,6 +1,7 @@
 package com.naylaaisyah.traveloapp.data.api
 
 import com.naylaaisyah.traveloapp.data.models.*
+import okhttp3.MultipartBody
 import retrofit2.http.*
 
 interface ApiService {
@@ -29,6 +30,33 @@ interface ApiService {
         @Header("Authorization") token: String
     ): ApiResponse<User>
 
+    @PUT("api/auth/profile")
+    suspend fun updateProfile(
+        @Header("Authorization") token: String,
+        @Body request: UpdateProfileRequest
+    ): ApiResponse<User>
+
+    @Multipart
+    @POST("api/auth/profile/photo")
+    suspend fun uploadProfilePhoto(
+        @Header("Authorization") token: String,
+        @Part photo: MultipartBody.Part
+    ): ApiResponse<User>
+
+    // The booker's saved identity for prefilling later bookings. This is
+    // owner-only and the response includes the raw number for the form.
+    @GET("api/auth/identity")
+    suspend fun getSavedIdentity(
+        @Header("Authorization") token: String
+    ): ApiResponse<SavedIdentity>
+
+    // Removes the account-level identity and its private document copy. Past
+    // bookings and their own document copies stay untouched.
+    @DELETE("api/auth/identity")
+    suspend fun deleteSavedIdentity(
+        @Header("Authorization") token: String
+    ): ApiResponse<Any>
+
     // Destination Endpoints
     @GET("api/destinations")
     suspend fun getDestinations(
@@ -45,6 +73,41 @@ interface ApiService {
     suspend fun getDestinationDetail(
         @Path("id") id: Int
     ): ApiResponse<Destination>
+
+    // Verified-visit reviews. Public lists contain only published reviews;
+    // eligibility and submissions are authenticated and booking-scoped.
+    @GET("api/destinations/{id}/reviews")
+    suspend fun getDestinationReviews(
+        @Path("id") destinationId: Int,
+        @Query("page") page: Int = 1,
+        @Query("per_page") perPage: Int = 5
+    ): ApiResponse<ReviewListData>
+
+    @GET("api/destinations/{id}/review-eligibility")
+    suspend fun getReviewEligibility(
+        @Header("Authorization") token: String,
+        @Path("id") destinationId: Int
+    ): ApiResponse<ReviewEligibility>
+
+    @POST("api/bookings/{bookingId}/review")
+    suspend fun submitReview(
+        @Header("Authorization") token: String,
+        @Path("bookingId") bookingId: Int,
+        @Body request: ReviewRequest
+    ): ApiResponse<Review>
+
+    @PATCH("api/reviews/{reviewId}")
+    suspend fun updateReview(
+        @Header("Authorization") token: String,
+        @Path("reviewId") reviewId: Int,
+        @Body request: ReviewRequest
+    ): ApiResponse<Review>
+
+    @DELETE("api/reviews/{reviewId}")
+    suspend fun deleteReview(
+        @Header("Authorization") token: String,
+        @Path("reviewId") reviewId: Int
+    ): ApiResponse<Any>
 
     // Tour Package Endpoints
     @GET("api/tour-packages")
@@ -89,6 +152,23 @@ interface ApiService {
         @Header("Authorization") token: String,
         @Path("id") id: Int
     ): ApiResponse<ETicket>
+
+    // Visitor identity. Documents are multipart uploads into private
+    // storage; the server returns document_status, never the raw file path.
+    @GET("api/bookings/{id}/visitors")
+    suspend fun getVisitors(
+        @Header("Authorization") token: String,
+        @Path("id") bookingId: Int
+    ): ApiResponse<List<Visitor>>
+
+    @Multipart
+    @POST("api/bookings/{id}/visitors/{visitorId}/identity-document")
+    suspend fun uploadVisitorDocument(
+        @Header("Authorization") token: String,
+        @Path("id") bookingId: Int,
+        @Path("visitorId") visitorId: Int,
+        @Part document: MultipartBody.Part
+    ): ApiResponse<Visitor>
 
     // Payment Endpoints
     @POST("api/payments/create-snap-token")

@@ -7,9 +7,11 @@ use App\Http\Controllers\Admin\ExportController;
 use App\Http\Controllers\Admin\ImportController;
 use App\Http\Controllers\Admin\LoginController;
 use App\Http\Controllers\Admin\PaymentController;
+use App\Http\Controllers\Admin\ReviewController;
 use App\Http\Controllers\Admin\TourPackageController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\ActivityLogController;
+use App\Http\Controllers\Admin\TicketController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Http\Request;
 
@@ -69,8 +71,10 @@ Route::prefix('admin')->name('admin.')->group(function () {
     Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
 });
 
-// Admin routes (protected)
-Route::prefix('admin')->name('admin.')->middleware('auth')->group(function () {
+// Admin routes (protected). Authentication alone is not enough: these
+// management screens expose every user, booking and export, so only the
+// admin role may reach them.
+Route::prefix('admin')->name('admin.')->middleware(['auth', 'role:admin'])->group(function () {
     // Dashboard
     Route::get('/', [AdminController::class, 'index'])->name('dashboard');
 
@@ -113,17 +117,40 @@ Route::prefix('admin')->name('admin.')->middleware('auth')->group(function () {
     Route::post('/import/tour-packages', [ImportController::class, 'importTourPackages'])->name('import.tour-packages.process');
     Route::get('/import/download-template/{type}', [ImportController::class, 'downloadTemplate'])->name('import.download-template');
 
+    // Verified-visit reviews (admin only; scanner staff must not moderate)
+    Route::get('/reviews', [ReviewController::class, 'index'])->name('reviews.index');
+    Route::patch('/reviews/{review}/moderate', [ReviewController::class, 'moderate'])->name('reviews.moderate');
+
     // Activity Logs
     Route::get('/activity-logs', [ActivityLogController::class, 'index'])->name('activity-logs.index');
 });
 
-// Fallback route for serving storage files directly (for symlink issues)
+// Gate scanner. Admin covers all destinations; staff only their
+// staff_destinations. Keeping this in a separate group lets gate staff use
+// the scanner without granting access to the management screens above.
+Route::prefix('admin')->name('admin.')->middleware(['auth', 'role:admin,staff'])->group(function () {
+    Route::get('/scanner', [TicketController::class, 'scanner'])->name('scanner');
+    Route::post('/tickets/redeem', [TicketController::class, 'redeem'])->name('tickets.redeem');
+    Route::post('/bookings/{booking}/ticket/reissue', [TicketController::class, 'reissue'])->name('tickets.reissue');
+    Route::patch('/visitors/{visitor}/document-review', [TicketController::class, 'reviewDocument'])->name('visitors.document-review');
+    Route::get('/visitors/{visitor}/document', [TicketController::class, 'downloadDocument'])->name('visitors.document');
+});
+
+// Fallback route for serving public storage files directly (for symlink issues).
+// Resolve the real path and require it to stay inside storage/app/public so a
+// crafted ../ path can never reach private identity documents or .env.
 Route::get('/storage/{path}', function ($path) {
-    $filePath = storage_path('app/public/' . $path);
-    
-    if (!file_exists($filePath)) {
-        abort(404);
-    }
-    
-    return response()->file($filePath);
+    $publicRoot = realpath(storage_path('app/public'));
+    $filePath = realpath(storage_path('app/public/' . $path));
+
+    abort_unless($publicRoot !== false && $filePath !== false, 404);
+
+    $prefix = rtrim($publicRoot, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
+
+    abort_unless(str_starts_with($filePath, $prefix), 404);
+    abort_unless(is_file($filePath), 404);
+
+    return response()->file($filePath, [
+        'X-Content-Type-Options' => 'nosniff',
+    ]);
 })->where('path', '.*')->name('storage.serve');

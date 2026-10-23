@@ -3,10 +3,13 @@
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BookingController;
 use App\Http\Controllers\Api\DestinationController;
+use App\Http\Controllers\Api\IdentityProfileController;
 use App\Http\Controllers\Api\MidtransController;
 use App\Http\Controllers\Api\OtpController;
 use App\Http\Controllers\Api\PaymentController;
+use App\Http\Controllers\Api\ReviewController;
 use App\Http\Controllers\Api\TourPackageController;
+use App\Http\Controllers\Api\VisitorController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -19,6 +22,12 @@ use Illuminate\Support\Facades\Route;
 Route::get('/destinations', [DestinationController::class, 'index']);
 Route::get('/destinations/popular', [DestinationController::class, 'popular']);
 Route::get('/destinations/{id}', [DestinationController::class, 'show']);
+
+// Verified-visit reviews: public aggregates/list only include published rows.
+Route::get('/destinations/{id}/reviews', [ReviewController::class, 'index'])
+    ->middleware('throttle:60,1');
+Route::get('/destinations/{id}/rating-summary', [ReviewController::class, 'summary'])
+    ->middleware('throttle:60,1');
 
 Route::get('/tour-packages', [TourPackageController::class, 'index']);
 Route::get('/tour-packages/{id}', [TourPackageController::class, 'show']);
@@ -47,12 +56,43 @@ Route::post('/tickets/verify', [BookingController::class, 'verifyTicket'])->midd
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/auth/logout', [AuthController::class, 'logout']);
     Route::get('/auth/me', [AuthController::class, 'me']);
+    Route::put('/auth/profile', [AuthController::class, 'updateProfile']);
+    Route::post('/auth/profile/photo', [AuthController::class, 'updatePhoto'])
+        ->middleware('throttle:10,1');
+    Route::get('/auth/identity', [IdentityProfileController::class, 'show'])
+        ->middleware('throttle:60,1');
+    Route::delete('/auth/identity', [IdentityProfileController::class, 'destroy'])
+        ->middleware('throttle:10,1');
 
     // Booking routes
     Route::get('/my-bookings', [BookingController::class, 'myBookings']);
     Route::post('/bookings', [BookingController::class, 'store']);
     Route::get('/bookings/{id}', [BookingController::class, 'show']);
     Route::get('/bookings/{id}/e-ticket', [BookingController::class, 'eTicket']);
+
+    // Reviews: destination eligibility is server-derived, and submissions are
+    // tied to the booking (never to a client-supplied destination id).
+    Route::get('/destinations/{id}/review-eligibility', [ReviewController::class, 'eligibility'])
+        ->middleware('throttle:60,1');
+    Route::post('/bookings/{bookingId}/review', [ReviewController::class, 'store'])
+        ->middleware('throttle:10,1');
+    Route::patch('/reviews/{reviewId}', [ReviewController::class, 'update'])
+        ->middleware('throttle:20,1');
+    Route::delete('/reviews/{reviewId}', [ReviewController::class, 'destroy'])
+        ->middleware('throttle:20,1');
+    Route::get('/reviews/mine', [ReviewController::class, 'mine'])
+        ->middleware('throttle:60,1');
+
+    // Visitor identity data + private document storage (owner only).
+    Route::get('/bookings/{id}/visitors', [VisitorController::class, 'index']);
+    Route::patch('/bookings/{id}/visitors/{visitorId}', [VisitorController::class, 'update'])
+        ->middleware('throttle:30,1');
+    Route::post('/bookings/{id}/visitors/{visitorId}/identity-document', [VisitorController::class, 'uploadDocument'])
+        ->middleware('throttle:10,1');
+    Route::delete('/bookings/{id}/visitors/{visitorId}/identity-document', [VisitorController::class, 'deleteDocument'])
+        ->middleware('throttle:10,1');
+    Route::get('/bookings/{id}/visitors/{visitorId}/identity-document', [VisitorController::class, 'downloadDocument'])
+        ->middleware('throttle:30,1');
     
     // Payment routes - CRITICAL: Call these after payment to update status
     Route::get('/bookings/{bookingId}/payment-status', [PaymentController::class, 'getStatus']);

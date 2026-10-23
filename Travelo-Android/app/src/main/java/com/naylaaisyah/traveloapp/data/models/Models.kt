@@ -8,7 +8,12 @@ data class User(
     val name: String,
     val email: String,
     val phone: String? = null,
+    // The backend stores this as `photo`; the UI keeps calling it avatar.
+    @SerializedName("photo")
     val avatar: String? = null,
+    @SerializedName("date_of_birth")
+    val dateOfBirth: String? = null,
+    val city: String? = null,
     @SerializedName("created_at")
     val createdAt: String? = null
 )
@@ -35,6 +40,18 @@ data class AuthResponse(
     val user: User? = null
 )
 
+/**
+ * Fields a traveller may change from Profile. Email is deliberately absent:
+ * it is owned by the verified Firebase identity.
+ */
+data class UpdateProfileRequest(
+    val name: String,
+    val phone: String? = null,
+    @SerializedName("date_of_birth")
+    val dateOfBirth: String? = null,
+    val city: String? = null
+)
+
 // Email OTP verification (login step 2). The 6-digit code is only ever sent
 // by email — it never travels through the API in plaintext.
 data class OtpSendResponse(
@@ -58,6 +75,8 @@ data class Destination(
     val description: String? = null,
     val image: String? = null,
     val rating: Double? = null,
+    @SerializedName("review_count")
+    val reviewCount: Int = 0,
     val country: String,
     val city: String,
     @SerializedName("is_popular")
@@ -95,6 +114,8 @@ data class TourPackage(
     @SerializedName("max_people")
     val maxPeople: Int,
     val rating: Double? = null,
+    @SerializedName("review_count")
+    val reviewCount: Int = 0,
     @SerializedName("created_at")
     val createdAt: String? = null
 )
@@ -128,6 +149,8 @@ data class TourPackageDetail(
     @SerializedName("max_people")
     val maxPeople: Int,
     val rating: Double? = null,
+    @SerializedName("review_count")
+    val reviewCount: Int = 0,
     val destination: Destination? = null,
     @SerializedName("created_at")
     val createdAt: String? = null
@@ -153,13 +176,195 @@ data class Booking(
     val totalPrice: Double,
     @SerializedName("booking_status")
     val status: String,
+    @SerializedName("payment_status")
+    val paymentStatus: String? = null,
+    @SerializedName("ticket_usage_status")
+    val ticketUsageStatus: String = "unused",
+    @SerializedName("ticket_used_at")
+    val ticketUsedAt: String? = null,
     @SerializedName("booking_date")
     val bookingDate: String,
+    // Laravel snake-cases loaded relations, so the API key is `tour_package`.
+    @SerializedName("tour_package")
     val tourPackage: TourPackage? = null,
     val payment: Payment? = null,
+    val visitors: List<Visitor> = emptyList(),
+    // Verified-visit review state for this booking. `review` only contains
+    // the owner's safe review representation, never another user's ids.
+    val review: Review? = null,
+    @SerializedName("review_status")
+    val reviewStatus: String? = null,
+    @SerializedName("can_review")
+    val canReview: Boolean? = null,
     @SerializedName("created_at")
     val createdAt: String? = null
 )
+
+// Verified-visit review models
+data class Review(
+    val id: Int,
+    val rating: Int,
+    val comment: String? = null,
+    @SerializedName("reviewer_name")
+    val reviewerName: String? = null,
+    @SerializedName("verified_visit")
+    val verifiedVisit: Boolean = false,
+    @SerializedName("booking_id")
+    val bookingId: Int? = null,
+    val status: String? = null,
+    @SerializedName("moderation_reason")
+    val moderationReason: String? = null,
+    val destination: ReviewDestination? = null,
+    @SerializedName("created_at")
+    val createdAt: String? = null,
+    @SerializedName("updated_at")
+    val updatedAt: String? = null
+) {
+    val isPublished: Boolean
+        get() = status == null || status == "published"
+}
+
+data class ReviewDestination(
+    val id: Int,
+    val name: String,
+    val city: String? = null,
+    val country: String? = null
+)
+
+data class ReviewSummary(
+    val average: Double? = null,
+    val count: Int = 0,
+    val distribution: Map<String, Int> = emptyMap()
+)
+
+data class ReviewMeta(
+    @SerializedName("current_page")
+    val currentPage: Int = 1,
+    @SerializedName("last_page")
+    val lastPage: Int = 1,
+    @SerializedName("per_page")
+    val perPage: Int = 5,
+    val total: Int = 0
+)
+
+data class ReviewListData(
+    val summary: ReviewSummary = ReviewSummary(),
+    val reviews: List<Review> = emptyList(),
+    val meta: ReviewMeta = ReviewMeta()
+)
+
+data class ReviewEligibility(
+    @SerializedName("destination_id")
+    val destinationId: Int,
+    val status: String,
+    @SerializedName("can_review")
+    val canReview: Boolean = false,
+    @SerializedName("booking_id")
+    val bookingId: Int? = null,
+    val review: Review? = null,
+    val message: String? = null
+)
+
+data class ReviewRequest(
+    val rating: Int,
+    val comment: String? = null
+)
+
+/**
+ * One traveller on a booking. The backend never sends the full identity
+ * number or the private document path; only a masked number and a document
+ * status are exposed.
+ */
+data class Visitor(
+    val id: Int,
+    val name: String,
+    @SerializedName("is_booker")
+    val isBooker: Boolean = false,
+    @SerializedName("identity_type")
+    val identityType: String? = null,
+    @SerializedName("identity_type_other")
+    val identityTypeOther: String? = null,
+    @SerializedName("identity_type_label")
+    val identityTypeLabel: String? = null,
+    @SerializedName("identity_number_masked")
+    val identityNumberMasked: String? = null,
+    @SerializedName("date_of_birth")
+    val dateOfBirth: String? = null,
+    val phone: String? = null,
+    @SerializedName("document_status")
+    val documentStatus: String = "missing",
+    @SerializedName("has_document")
+    val hasDocument: Boolean = false,
+    @SerializedName("is_identity_complete")
+    val isIdentityComplete: Boolean = false
+)
+
+data class VisitorRequest(
+    val name: String,
+    @SerializedName("identity_type")
+    val identityType: String,
+    @SerializedName("identity_type_other")
+    val identityTypeOther: String? = null,
+    @SerializedName("identity_number")
+    val identityNumber: String,
+    @SerializedName("date_of_birth")
+    val dateOfBirth: String? = null,
+    val phone: String? = null,
+    @SerializedName("is_booker")
+    val isBooker: Boolean = false
+)
+
+/** Form values collected on the booking screen. */
+data class VisitorInput(
+    val name: String,
+    val identityType: String,
+    val identityTypeOther: String? = null,
+    val identityNumber: String,
+    val dateOfBirth: String? = null,
+    val phone: String? = null
+)
+
+/** In-memory document bytes, uploaded after the booking gets an id. */
+data class VisitorDocumentInput(
+    val fileName: String,
+    val mimeType: String,
+    val bytes: ByteArray
+)
+
+/**
+ * The booker's account-level identity, used to prefill later bookings.
+ * Identity numbers are returned only to the authenticated owner; the private
+ * document path is never included.
+ */
+data class SavedIdentity(
+    val name: String,
+    @SerializedName("identity_type")
+    val identityType: String,
+    @SerializedName("identity_type_other")
+    val identityTypeOther: String? = null,
+    @SerializedName("identity_number")
+    val identityNumber: String,
+    @SerializedName("date_of_birth")
+    val dateOfBirth: String? = null,
+    val phone: String? = null,
+    @SerializedName("has_document")
+    val hasDocument: Boolean = false,
+    @SerializedName("can_reuse_document")
+    val canReuseDocument: Boolean = false,
+    @SerializedName("document_status")
+    val documentStatus: String? = null,
+    @SerializedName("document_uploaded_at")
+    val documentUploadedAt: String? = null,
+    @SerializedName("updated_at")
+    val updatedAt: String? = null
+)
+
+data class TicketDestination(
+    val id: Int? = null,
+    val name: String? = null,
+    val city: String? = null
+)
+
 
 /**
  * Backend-issued e-ticket. The reference and signed token are created only
@@ -181,7 +386,15 @@ data class ETicket(
     @SerializedName("people_count")
     val peopleCount: Int? = null,
     @SerializedName("holder_name")
-    val holderName: String? = null
+    val holderName: String? = null,
+    @SerializedName("usage_status")
+    val usageStatus: String = "unused",
+    @SerializedName("payment_status")
+    val paymentStatus: String? = null,
+    @SerializedName("valid_until")
+    val validUntil: String? = null,
+    val destination: TicketDestination? = null,
+    val visitors: List<Visitor> = emptyList()
 )
 
 data class BookingRequest(
@@ -192,8 +405,14 @@ data class BookingRequest(
     @SerializedName("booking_date")
     val bookingDate: String,
     @SerializedName("special_requests")
-    val specialRequests: String? = null
+    val specialRequests: String? = null,
+    val visitors: List<VisitorRequest>? = null,
+    @SerializedName("privacy_consent")
+    val privacyConsent: Boolean? = null,
+    @SerializedName("reuse_saved_identity_document")
+    val reuseSavedIdentityDocument: Boolean? = null
 )
+
 
 data class BookingResponse(
     val message: String,

@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>@yield('title', 'Travelo Admin')</title>
+    <link rel="icon" type="image/png" href="/images/logos/travelo-favicon.png">
+    <link rel="apple-touch-icon" href="/images/logos/travelo-logo-192.png">
 
     <!-- Brand fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -25,7 +27,7 @@
     <aside id="admin-sidebar" class="fixed inset-y-0 left-0 z-50 w-72 bg-white border-r border-slate-200 flex flex-col -translate-x-full lg:translate-x-0 transition-transform duration-200">
         <div class="p-6 flex items-center justify-between gap-3 border-b border-slate-100">
             <a href="{{ route('admin.dashboard') }}" class="flex items-center gap-3 group">
-                <img src="/images/logos/travelo-logo-primary.svg" alt="Travelo" class="h-10 w-auto" width="150" height="40">
+                <img src="/images/logos/travelo-logo-primary.png" alt="Travelo" class="h-12 w-12" width="48" height="48">
             </a>
             <button type="button" id="sidebar-close" class="lg:hidden inline-flex items-center justify-center size-10 rounded-xl text-muted hover:bg-blush" aria-label="Close navigation">
                 <span class="material-symbols-outlined">close</span>
@@ -33,40 +35,54 @@
         </div>
 
         <nav class="flex-1 px-4 py-4 space-y-1 overflow-y-auto" aria-label="Admin navigation">
-            <a href="{{ route('admin.dashboard') }}" class="flex items-center gap-3 px-4 py-3 {{ request()->routeIs('admin.dashboard') ? 'bg-primary/10 text-primary font-semibold' : 'text-slate-600 hover:bg-blush' }} rounded-xl transition-colors duration-200">
-                <span class="material-symbols-outlined">dashboard</span>
-                <span class="font-medium text-sm">Dashboard</span>
-            </a>
-            <a href="{{ route('admin.destinations.index') }}" class="flex items-center gap-3 px-4 py-3 {{ request()->routeIs('admin.destinations.*') ? 'bg-primary/10 text-primary font-semibold' : 'text-slate-600 hover:bg-blush' }} rounded-xl transition-colors duration-200">
-                <span class="material-symbols-outlined">map</span>
-                <span class="font-medium text-sm">Destinations</span>
-            </a>
-            <a href="{{ route('admin.tour-packages.index') }}" class="flex items-center gap-3 px-4 py-3 {{ request()->routeIs('admin.tour-packages.*') ? 'bg-primary/10 text-primary font-semibold' : 'text-slate-600 hover:bg-blush' }} rounded-xl transition-colors duration-200">
-                <span class="material-symbols-outlined">inventory_2</span>
-                <span class="font-medium text-sm">Tour Packages</span>
-            </a>
-            <a href="{{ route('admin.import.index') }}" class="flex items-center gap-3 px-4 py-3 {{ request()->routeIs('admin.import.*') ? 'bg-primary/10 text-primary font-semibold' : 'text-slate-600 hover:bg-blush' }} rounded-xl transition-colors duration-200">
-                <span class="material-symbols-outlined">upload_file</span>
-                <span class="font-medium text-sm">Import Data</span>
-            </a>
-            <a href="{{ route('admin.bookings.index') }}" class="flex items-center gap-3 px-4 py-3 {{ request()->routeIs('admin.bookings.*') ? 'bg-primary/10 text-primary font-semibold' : 'text-slate-600 hover:bg-blush' }} rounded-xl transition-colors duration-200">
-                <span class="material-symbols-outlined">calendar_month</span>
-                <span class="font-medium text-sm">Bookings</span>
-            </a>
-            <a href="{{ route('admin.payments.index') }}" class="flex items-center gap-3 px-4 py-3 {{ request()->routeIs('admin.payments.*') ? 'bg-primary/10 text-primary font-semibold' : 'text-slate-600 hover:bg-blush' }} rounded-xl transition-colors duration-200">
-                <span class="material-symbols-outlined">payments</span>
-                <span class="font-medium text-sm">Payments</span>
-            </a>
-            <a href="{{ route('admin.users.index') }}" class="flex items-center gap-3 px-4 py-3 {{ request()->routeIs('admin.users.*') ? 'bg-primary/10 text-primary font-semibold' : 'text-slate-600 hover:bg-blush' }} rounded-xl transition-colors duration-200">
-                <span class="material-symbols-outlined">group</span>
-                <span class="font-medium text-sm">Customers</span>
-            </a>
-            <div class="pt-4 mt-4 border-t border-slate-100">
-                <a href="{{ route('admin.activity-logs.index') }}" class="flex items-center gap-3 px-4 py-3 {{ request()->routeIs('admin.activity-logs.*') ? 'bg-primary/10 text-primary font-semibold' : 'text-slate-600 hover:bg-blush' }} rounded-xl transition-colors duration-200">
-                    <span class="material-symbols-outlined">history</span>
-                    <span class="font-medium text-sm">Activity Logs</span>
+            @if(auth()->user()?->isAdmin())
+                <a href="{{ route('admin.dashboard') }}" class="flex items-center gap-3 px-4 py-3 {{ request()->routeIs('admin.dashboard') ? 'bg-primary/10 text-primary font-semibold' : 'text-slate-600 hover:bg-blush' }} rounded-xl transition-colors duration-200">
+                    <span class="material-symbols-outlined">dashboard</span>
+                    <span class="font-medium text-sm">Dashboard</span>
                 </a>
-            </div>
+            @endif
+
+            <a href="{{ route('admin.scanner') }}" class="flex items-center gap-3 px-4 py-3 {{ request()->routeIs('admin.scanner') ? 'bg-primary/10 text-primary font-semibold' : 'text-slate-600 hover:bg-blush' }} rounded-xl transition-colors duration-200">
+                <span class="material-symbols-outlined">qr_code_scanner</span>
+                <span class="font-medium text-sm">Scan ticket</span>
+            </a>
+
+            @if(auth()->user()?->isAdmin())
+                <a href="{{ route('admin.destinations.index') }}" class="flex items-center gap-3 px-4 py-3 {{ request()->routeIs('admin.destinations.*') ? 'bg-primary/10 text-primary font-semibold' : 'text-slate-600 hover:bg-blush' }} rounded-xl transition-colors duration-200">
+                    <span class="material-symbols-outlined">map</span>
+                    <span class="font-medium text-sm">Destinations</span>
+                </a>
+                <a href="{{ route('admin.tour-packages.index') }}" class="flex items-center gap-3 px-4 py-3 {{ request()->routeIs('admin.tour-packages.*') ? 'bg-primary/10 text-primary font-semibold' : 'text-slate-600 hover:bg-blush' }} rounded-xl transition-colors duration-200">
+                    <span class="material-symbols-outlined">inventory_2</span>
+                    <span class="font-medium text-sm">Tour Packages</span>
+                </a>
+                <a href="{{ route('admin.import.index') }}" class="flex items-center gap-3 px-4 py-3 {{ request()->routeIs('admin.import.*') ? 'bg-primary/10 text-primary font-semibold' : 'text-slate-600 hover:bg-blush' }} rounded-xl transition-colors duration-200">
+                    <span class="material-symbols-outlined">upload_file</span>
+                    <span class="font-medium text-sm">Import Data</span>
+                </a>
+                <a href="{{ route('admin.bookings.index') }}" class="flex items-center gap-3 px-4 py-3 {{ request()->routeIs('admin.bookings.*') ? 'bg-primary/10 text-primary font-semibold' : 'text-slate-600 hover:bg-blush' }} rounded-xl transition-colors duration-200">
+                    <span class="material-symbols-outlined">calendar_month</span>
+                    <span class="font-medium text-sm">Bookings</span>
+                </a>
+                <a href="{{ route('admin.payments.index') }}" class="flex items-center gap-3 px-4 py-3 {{ request()->routeIs('admin.payments.*') ? 'bg-primary/10 text-primary font-semibold' : 'text-slate-600 hover:bg-blush' }} rounded-xl transition-colors duration-200">
+                    <span class="material-symbols-outlined">payments</span>
+                    <span class="font-medium text-sm">Payments</span>
+                </a>
+                <a href="{{ route('admin.reviews.index') }}" class="flex items-center gap-3 px-4 py-3 {{ request()->routeIs('admin.reviews.*') ? 'bg-primary/10 text-primary font-semibold' : 'text-slate-600 hover:bg-blush' }} rounded-xl transition-colors duration-200">
+                    <span class="material-symbols-outlined">reviews</span>
+                    <span class="font-medium text-sm">Reviews</span>
+                </a>
+                <a href="{{ route('admin.users.index') }}" class="flex items-center gap-3 px-4 py-3 {{ request()->routeIs('admin.users.*') ? 'bg-primary/10 text-primary font-semibold' : 'text-slate-600 hover:bg-blush' }} rounded-xl transition-colors duration-200">
+                    <span class="material-symbols-outlined">group</span>
+                    <span class="font-medium text-sm">Customers</span>
+                </a>
+                <div class="pt-4 mt-4 border-t border-slate-100">
+                    <a href="{{ route('admin.activity-logs.index') }}" class="flex items-center gap-3 px-4 py-3 {{ request()->routeIs('admin.activity-logs.*') ? 'bg-primary/10 text-primary font-semibold' : 'text-slate-600 hover:bg-blush' }} rounded-xl transition-colors duration-200">
+                        <span class="material-symbols-outlined">history</span>
+                        <span class="font-medium text-sm">Activity Logs</span>
+                    </a>
+                </div>
+            @endif
         </nav>
 
         <div class="p-4 border-t border-slate-100 bg-cream">

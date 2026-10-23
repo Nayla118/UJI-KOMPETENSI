@@ -68,7 +68,10 @@ class ExportService
                 'Name' => $destination->name,
                 'City' => $destination->city,
                 'Country' => $destination->country,
-                'Rating' => $destination->rating,
+                'Published Rating' => (int) ($destination->reviews_count ?? 0) > 0
+                    ? round((float) $destination->reviews_avg_rating, 2)
+                    : null,
+                'Review Count' => (int) ($destination->reviews_count ?? 0),
                 'Tour Packages' => $destination->tourPackages->count(),
                 'Created At' => $destination->created_at->format('Y-m-d H:i:s'),
             ];

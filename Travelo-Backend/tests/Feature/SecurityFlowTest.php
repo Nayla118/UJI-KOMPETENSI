@@ -180,6 +180,98 @@ class SecurityFlowTest extends TestCase
         $this->assertNotNull($user->fresh());
     }
 
+    public function test_profile_update_requires_authentication(): void
+    {
+        $this->putJson('/api/auth/profile', [
+            'name' => 'Anonymous',
+        ])->assertUnauthorized();
+    }
+
+    public function test_user_can_update_their_own_profile_details(): void
+    {
+        $user = $this->makeUser('profile');
+        $originalEmail = $user->email;
+        Sanctum::actingAs($user);
+
+        $this->putJson('/api/auth/profile', [
+            'name' => '  Nayla Aisyah  ',
+            'phone' => '  +62 812-3456-7890  ',
+            'date_of_birth' => '1998-04-12',
+            'city' => '  Bandung  ',
+            'email' => 'attacker@example.com',
+        ])->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.name', 'Nayla Aisyah')
+            ->assertJsonPath('data.phone', '+62 812-3456-7890')
+            ->assertJsonPath('data.date_of_birth', '1998-04-12')
+            ->assertJsonPath('data.city', 'Bandung')
+            ->assertJsonPath('data.email', $originalEmail);
+
+        $user->refresh();
+        $this->assertSame('Nayla Aisyah', $user->name);
+        $this->assertSame('+62 812-3456-7890', $user->phone);
+        $this->assertSame('1998-04-12', $user->date_of_birth->toDateString());
+        $this->assertSame('Bandung', $user->city);
+        $this->assertSame($originalEmail, $user->email);
+    }
+
+    public function test_profile_update_can_clear_optional_fields(): void
+    {
+        $user = $this->makeUser('clear');
+        $user->update([
+            'phone' => '081234567890',
+            'date_of_birth' => '1990-01-01',
+            'city' => 'Jakarta',
+        ]);
+
+        Sanctum::actingAs($user);
+
+        $this->putJson('/api/auth/profile', [
+            'name' => 'Still Here',
+        ])->assertOk()
+            ->assertJsonPath('data.phone', null)
+            ->assertJsonPath('data.date_of_birth', null)
+            ->assertJsonPath('data.city', null);
+    }
+
+    public function test_profile_update_rejects_invalid_phone_and_future_birth_date(): void
+    {
+        $user = $this->makeUser('invalid');
+        Sanctum::actingAs($user);
+
+        $this->putJson('/api/auth/profile', [
+            'name' => 'Valid Name',
+            'phone' => 'not-a-phone',
+            'date_of_birth' => now()->addDay()->toDateString(),
+        ])->assertStatus(422)
+            ->assertJsonValidationErrors(['phone', 'date_of_birth']);
+
+        $this->assertNull($user->fresh()->phone);
+        $this->assertNull($user->fresh()->date_of_birth);
+    }
+
+    public function test_an_edited_local_name_survives_the_next_firebase_sign_in(): void
+    {
+        $user = User::create([
+            'firebase_uid' => 'profile-name-uid',
+            'name' => 'Edited Local Name',
+            'email' => 'profile-name@example.com',
+        ]);
+
+        $this->mockVerifier($this->identity([
+            'uid' => 'profile-name-uid',
+            'email' => 'profile-name@example.com',
+            'name' => 'Provider Display Name',
+            'email_verified' => true,
+            'provider' => 'google.com',
+        ]));
+
+        $this->postJson('/api/auth/login', ['id_token' => 'valid-token'])
+            ->assertOk();
+
+        $this->assertSame('Edited Local Name', $user->fresh()->name);
+    }
+
     public function test_payment_retry_sync_cannot_touch_another_users_booking(): void
     {
         $owner = $this->makeUser('owner');
@@ -199,11 +291,31 @@ class SecurityFlowTest extends TestCase
             ->assertNotFound();
     }
 
+    public function test_mark_as_paid_cannot_touch_another_users_booking(): void
+    {
+        $owner = $this->makeUser('mark-paid-owner');
+        $attacker = $this->makeUser('mark-paid-attacker');
+        [$booking] = $this->makeBooking($owner);
+
+        Payment::create([
+            'booking_id' => $booking->id,
+            'payment_status' => 'pending',
+            'payment_method' => 'qris',
+            'amount' => 2000000,
+        ]);
+
+        Sanctum::actingAs($attacker);
+
+        $this->postJson("/api/bookings/{$booking->id}/payment/mark-as-paid")
+            ->assertNotFound();
+    }
+
     public function test_e_ticket_requires_ownership_and_a_confirmed_paid_booking(): void
     {
         $owner = $this->makeUser('owner');
         $attacker = $this->makeUser('attacker');
         [$booking] = $this->makeBooking($owner, [
+            'booking_date' => now()->toDateString(),
             'payment_status' => 'paid',
             'booking_status' => 'confirmed',
         ]);
@@ -297,5 +409,103 @@ class SecurityFlowTest extends TestCase
         $booking->refresh();
         $this->assertSame('paid', $booking->payment_status);
         $this->assertSame('confirmed', $booking->booking_status);
+    }
+
+    public function test_staff_cannot_reach_admin_management_routes_but_can_reach_gate_endpoints(): void
+    {
+        $staff = User::create([
+            'firebase_uid' => 'staff-'.uniqid(),
+            'name' => 'Gate Staff',
+            'email' => 'staff-'.uniqid().'@example.com',
+            'role' => User::ROLE_STAFF,
+            'password' => bcrypt('synthetic-password'),
+        ]);
+
+        $this->actingAs($staff)->get('/admin')->assertForbidden();
+        $this->actingAs($staff)->get('/admin/users')->assertForbidden();
+        $this->actingAs($staff)->get('/admin/export/users')->assertForbidden();
+
+        // The ticket foundation is intentionally available to gate staff.
+        $this->actingAs($staff)
+            ->postJson('/admin/tickets/redeem', ['token' => 'not-a-valid-token'])
+            ->assertStatus(422);
+    }
+
+    public function test_traveller_cannot_reach_the_admin_panel_or_gate_endpoints(): void
+    {
+        $traveller = $this->makeUser('traveller-panel');
+
+        $this->actingAs($traveller)->get('/admin')->assertForbidden();
+        $this->actingAs($traveller)
+            ->postJson('/admin/tickets/redeem', ['token' => 'not-a-valid-token'])
+            ->assertForbidden();
+    }
+
+    public function test_traveller_password_cannot_open_an_admin_session(): void
+    {
+        $email = 'traveller-login-'.uniqid().'@example.com';
+
+        User::create([
+            'firebase_uid' => 'traveller-login-'.uniqid(),
+            'name' => 'Traveller',
+            'email' => $email,
+            'role' => User::ROLE_TRAVELLER,
+            'password' => bcrypt('synthetic-password'),
+        ]);
+
+        $this->post('/admin/login', [
+            'email' => $email,
+            'password' => 'synthetic-password',
+        ])->assertSessionHasErrors('email');
+
+        $this->assertGuest();
+    }
+
+    public function test_admin_can_reach_admin_management_routes(): void
+    {
+        $admin = User::create([
+            'firebase_uid' => 'admin-'.uniqid(),
+            'name' => 'Admin',
+            'email' => 'admin-'.uniqid().'@example.com',
+            'role' => User::ROLE_ADMIN,
+            'password' => bcrypt('synthetic-password'),
+        ]);
+
+        $this->actingAs($admin)->get('/admin/users')->assertOk();
+    }
+
+    public function test_storage_fallback_cannot_escape_the_public_directory(): void
+    {
+        $name = 'security-probe-'.uniqid().'.txt';
+        $privateFile = storage_path('app/private/'.$name);
+
+        if (!is_dir(dirname($privateFile))) {
+            mkdir(dirname($privateFile), 0777, true);
+        }
+        file_put_contents($privateFile, 'synthetic-private-probe');
+
+        try {
+            $response = $this->get('/storage/..%2Fprivate%2F'.$name);
+
+            $this->assertContains($response->status(), [403, 404]);
+            $this->assertStringNotContainsString(
+                'synthetic-private-probe',
+                (string) $response->getContent()
+            );
+        } finally {
+            @unlink($privateFile);
+        }
+
+        $publicFile = storage_path('app/public/'.$name);
+        file_put_contents($publicFile, 'synthetic-public-probe');
+
+        try {
+            $response = $this->get('/storage/'.$name);
+
+            $response->assertOk()
+                ->assertHeader('X-Content-Type-Options', 'nosniff');
+        } finally {
+            @unlink($publicFile);
+        }
     }
 }

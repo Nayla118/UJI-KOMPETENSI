@@ -84,7 +84,11 @@ class TourPackageController extends Controller
      */
     public function edit(TourPackage $tourPackage): View
     {
+        $tourPackage->load(['destination' => fn ($query) => $query
+            ->withAvg('publishedReviews as reviews_avg_rating', 'rating')
+            ->withCount('publishedReviews as reviews_count')]);
         $destinations = Destination::all();
+
         return view('admin.tour-packages.edit', compact('tourPackage', 'destinations'));
     }
 
@@ -123,7 +127,13 @@ class TourPackageController extends Controller
      */
     public function show(TourPackage $tourPackage): View
     {
-        $tourPackage->load(['destination', 'bookings']);
+        $tourPackage->load([
+            'destination' => fn ($query) => $query
+                ->withAvg('publishedReviews as reviews_avg_rating', 'rating')
+                ->withCount('publishedReviews as reviews_count'),
+            'bookings',
+        ]);
+
         return view('admin.tour-packages.show', compact('tourPackage'));
     }
 

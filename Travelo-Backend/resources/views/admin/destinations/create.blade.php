@@ -121,13 +121,9 @@
 
                     <div class="flex flex-col gap-2">
                         <label class="text-sm font-semibold text-slate-700">Average Rating</label>
-                        <div class="relative">
-                            <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-amber-400" style="font-variation-settings: 'FILL' 1;">star</span>
-                            <input name="rating" value="{{ old('rating', 4.5) }}" class="w-full rounded-lg border-slate-200 focus:border-primary focus:ring-primary text-sm p-2.5 pl-10" max="5" min="0" placeholder="4.5" step="0.1" type="number">
+                        <div class="rounded-lg border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-600">
+                            Calculated automatically from published verified reviews.
                         </div>
-                        @error('rating')
-                            <p class="text-red-500 text-xs">{{ $message }}</p>
-                        @enderror
                     </div>
 
                     <div class="col-span-2 flex flex-col gap-2">
@@ -204,7 +200,7 @@
             <span class="material-symbols-outlined text-primary">tips_and_updates</span>
             <div>
                 <p class="text-sm font-bold text-slate-900">Pro Tip</p>
-                <p class="text-xs text-slate-600">Include high-quality landscape images to increase the engagement score by up to 40%. Destinations with ratings above 4.5 are automatically featured on the homepage.</p>
+                <p class="text-xs text-slate-600">Ratings are calculated only from published reviews of travellers whose tickets were checked in. They cannot be entered manually.</p>
             </div>
         </div>
     </form>

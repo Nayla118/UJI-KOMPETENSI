@@ -7,6 +7,9 @@ import com.naylaaisyah.traveloapp.util.SessionManager
 import com.google.gson.JsonSyntaxException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 import retrofit2.HttpException
 import javax.inject.Inject
@@ -200,6 +203,100 @@ class TraveloRepository @Inject constructor(
         }
     }
 
+    // Verified-visit reviews
+    suspend fun getDestinationReviews(
+        destinationId: Int,
+        page: Int = 1,
+        perPage: Int = 5
+    ): Resource<ReviewListData> {
+        return try {
+            val response = apiService.getDestinationReviews(destinationId, page, perPage)
+            if (response.success && response.data != null) {
+                Resource.Success(response.data)
+            } else {
+                Resource.Error(Exception(response.message), response.message)
+            }
+        } catch (e: Exception) {
+            Resource.Error(e, readableError(e, "Couldn't load reviews."))
+        }
+    }
+
+    suspend fun getReviewEligibility(
+        token: String,
+        destinationId: Int
+    ): Resource<ReviewEligibility> {
+        return try {
+            val response = apiService.getReviewEligibility("Bearer $token", destinationId)
+            if (response.success && response.data != null) {
+                Resource.Success(response.data)
+            } else {
+                Resource.Error(Exception(response.message), response.message)
+            }
+        } catch (e: Exception) {
+            Resource.Error(e, readableError(e, "Couldn't check your review eligibility."))
+        }
+    }
+
+    suspend fun submitReview(
+        token: String,
+        bookingId: Int,
+        rating: Int,
+        comment: String?
+    ): Resource<Review> {
+        return try {
+            val response = apiService.submitReview(
+                "Bearer $token",
+                bookingId,
+                ReviewRequest(rating = rating, comment = comment)
+            )
+            if (response.success && response.data != null) {
+                Resource.Success(response.data)
+            } else {
+                val message = response.message.ifBlank { "Couldn't save your review." }
+                Resource.Error(Exception(message), message)
+            }
+        } catch (e: Exception) {
+            Resource.Error(e, readableError(e, "Couldn't save your review."))
+        }
+    }
+
+    suspend fun updateReview(
+        token: String,
+        reviewId: Int,
+        rating: Int,
+        comment: String?
+    ): Resource<Review> {
+        return try {
+            val response = apiService.updateReview(
+                "Bearer $token",
+                reviewId,
+                ReviewRequest(rating = rating, comment = comment)
+            )
+            if (response.success && response.data != null) {
+                Resource.Success(response.data)
+            } else {
+                val message = response.message.ifBlank { "Couldn't update your review." }
+                Resource.Error(Exception(message), message)
+            }
+        } catch (e: Exception) {
+            Resource.Error(e, readableError(e, "Couldn't update your review."))
+        }
+    }
+
+    suspend fun deleteReview(token: String, reviewId: Int): Resource<Unit> {
+        return try {
+            val response = apiService.deleteReview("Bearer $token", reviewId)
+            if (response.success) {
+                Resource.Success(Unit)
+            } else {
+                val message = response.message.ifBlank { "Couldn't delete your review." }
+                Resource.Error(Exception(message), message)
+            }
+        } catch (e: Exception) {
+            Resource.Error(e, readableError(e, "Couldn't delete your review."))
+        }
+    }
+
     // Tour Packages
     suspend fun getTourPackages(page: Int = 1): Resource<List<TourPackage>> {
         return try {
@@ -254,51 +351,80 @@ class TraveloRepository @Inject constructor(
         }
     }
 
-    suspend fun createBooking(
-        token: String,
-        tourPackageId: Int,
-        numberOfPersons: Int,
-        travelDate: String
-    ): Resource<CreateBookingResponseData> {
-        return try {
-            val response = apiService.createBooking(
-                "Bearer $token",
-                BookingRequest(tourPackageId, numberOfPersons, travelDate)
-            )
-            if (response.success && response.data != null) {
-                Resource.Success(response.data)
-            } else {
-                Resource.Error(Exception(response.message))
-            }
-        } catch (e: Exception) {
-            Resource.Error(e, readableError(e, "Failed to create booking"))
-        }
-    }
-
     fun createBooking(
         token: String,
         request: BookingRequest
     ): Flow<Resource<CreateBookingResponse>> = flow {
         emit(Resource.Loading<CreateBookingResponse>())
-        when (val result = createBooking(token, request.tourPackageId, request.peopleCount, request.bookingDate)) {
-            is Resource.Success -> {
-                val data = result.data
-                if (data.booking != null) {
-                    emit(
-                        Resource.Success(
-                            ApiResponse(
-                                success = true,
-                                message = "Booking created successfully",
-                                data = data
-                            )
+        try {
+            val response = apiService.createBooking("Bearer $token", request)
+            val data = response.data
+            if (response.success && data?.booking != null) {
+                emit(
+                    Resource.Success(
+                        ApiResponse(
+                            success = true,
+                            message = response.message.ifBlank { "Booking created successfully" },
+                            data = data
                         )
                     )
-                } else {
-                    emit(Resource.Error(Exception("Booking creation failed")))
-                }
+                )
+            } else {
+                val message = response.message.ifBlank { "Failed to create booking" }
+                emit(Resource.Error(Exception(message), message))
             }
-            is Resource.Error -> emit(Resource.Error(result.exception, result.message))
-            is Resource.Loading -> emit(Resource.Loading<CreateBookingResponse>())
+        } catch (e: Exception) {
+            emit(Resource.Error(e, readableError(e, "Failed to create booking")))
+        }
+    }
+
+    /**
+     * Upload one identity document to private server storage. The backend
+     * validates content type/size itself; the client-side check only exists
+     * for faster feedback.
+     */
+    suspend fun uploadVisitorDocument(
+        token: String,
+        bookingId: Int,
+        visitorId: Int,
+        fileName: String,
+        mimeType: String,
+        bytes: ByteArray
+    ): Resource<Visitor> {
+        return try {
+            val body = bytes.toRequestBody(mimeType.toMediaTypeOrNull())
+            val part = MultipartBody.Part.createFormData("document", fileName, body)
+            val response = apiService.uploadVisitorDocument(
+                "Bearer $token",
+                bookingId,
+                visitorId,
+                part
+            )
+            val data = response.data
+            if (response.success && data != null) {
+                Resource.Success(data)
+            } else {
+                val message = response.message.ifBlank { "Couldn't upload the document." }
+                Resource.Error(Exception(message), message)
+            }
+        } catch (e: HttpException) {
+            val message = serverMessage(e) ?: "Couldn't upload the document."
+            Resource.Error(e, message)
+        } catch (e: Exception) {
+            Resource.Error(e, readableError(e, "Couldn't upload the document."))
+        }
+    }
+
+    suspend fun getVisitors(token: String, bookingId: Int): Resource<List<Visitor>> {
+        return try {
+            val response = apiService.getVisitors("Bearer $token", bookingId)
+            if (response.success && response.data != null) {
+                Resource.Success(response.data)
+            } else {
+                Resource.Error(Exception(response.message), response.message)
+            }
+        } catch (e: Exception) {
+            Resource.Error(e, readableError(e, "Couldn't load visitor data."))
         }
     }
 
@@ -400,10 +526,98 @@ class TraveloRepository @Inject constructor(
             if (response.success && response.data != null) {
                 Resource.Success(response.data)
             } else {
-                Resource.Error(Exception(response.message))
+                Resource.Error(Exception(response.message), response.message)
             }
         } catch (e: Exception) {
-            Resource.Error(e, readableError(e, "Failed to get user profile"))
+            Resource.Error(e, readableError(e, "Couldn't load your profile."))
+        }
+    }
+
+    /**
+     * The account's saved booker identity. A successful response with no
+     * data means this account has not supplied identity data yet, which is
+     * not an error.
+     */
+    suspend fun getSavedIdentity(token: String): Resource<SavedIdentity?> {
+        return try {
+            val response = apiService.getSavedIdentity("Bearer $token")
+            if (response.success) {
+                Resource.Success(response.data)
+            } else {
+                Resource.Error(Exception(response.message), response.message)
+            }
+        } catch (e: Exception) {
+            Resource.Error(e, readableError(e, "Couldn't load your saved identity."))
+        }
+    }
+
+    suspend fun deleteSavedIdentity(token: String): Resource<Unit> {
+        return try {
+            val response = apiService.deleteSavedIdentity("Bearer $token")
+            if (response.success) {
+                Resource.Success(Unit)
+            } else {
+                val message = response.message.ifBlank {
+                    "Couldn't delete your saved identity."
+                }
+                Resource.Error(Exception(message), message)
+            }
+        } catch (e: Exception) {
+            Resource.Error(e, readableError(e, "Couldn't delete your saved identity."))
+        }
+    }
+
+    suspend fun uploadProfilePhoto(
+        token: String,
+        fileName: String,
+        mimeType: String,
+        bytes: ByteArray
+    ): Resource<User> {
+        return try {
+            val body = bytes.toRequestBody(mimeType.toMediaTypeOrNull())
+            val part = MultipartBody.Part.createFormData("photo", fileName, body)
+            val response = apiService.uploadProfilePhoto("Bearer $token", part)
+            val data = response.data
+
+            if (response.success && data != null) {
+                Resource.Success(data)
+            } else {
+                val message = response.message.ifBlank { "Couldn't update your profile photo." }
+                Resource.Error(Exception(message), message)
+            }
+        } catch (e: HttpException) {
+            val message = serverMessage(e) ?: "Couldn't update your profile photo."
+            Resource.Error(e, message)
+        } catch (e: Exception) {
+            Resource.Error(e, readableError(e, "Couldn't update your profile photo."))
+        }
+    }
+
+    suspend fun updateProfile(
+        token: String,
+        name: String,
+        phone: String?,
+        dateOfBirth: String?,
+        city: String?
+    ): Resource<User> {
+        return try {
+            val response = apiService.updateProfile(
+                "Bearer $token",
+                UpdateProfileRequest(
+                    name = name,
+                    phone = phone,
+                    dateOfBirth = dateOfBirth,
+                    city = city
+                )
+            )
+            if (response.success && response.data != null) {
+                Resource.Success(response.data)
+            } else {
+                val message = response.message.ifBlank { "Couldn't save your profile." }
+                Resource.Error(Exception(message), message)
+            }
+        } catch (e: Exception) {
+            Resource.Error(e, readableError(e, "Couldn't save your profile."))
         }
     }
 }

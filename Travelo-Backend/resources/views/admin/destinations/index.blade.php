@@ -109,10 +109,15 @@
                             <td class="px-6 py-4 text-slate-600">{{ $destination->city }}</td>
                             <td class="px-6 py-4 text-slate-600">{{ $destination->country }}</td>
                             <td class="px-6 py-4">
-                                <div class="flex items-center gap-1.5">
-                                    <span class="material-symbols-outlined text-amber-400 text-[18px] fill-current">star</span>
-                                    <span class="text-sm font-medium">{{ number_format($destination->rating, 1) }}</span>
-                                </div>
+                                @if ($destination->reviews_count > 0)
+                                    <div class="flex items-center gap-1.5">
+                                        <span class="material-symbols-outlined text-amber-400 text-[18px] fill-current">star</span>
+                                        <span class="text-sm font-medium">{{ number_format($destination->reviews_avg_rating, 1) }}</span>
+                                        <span class="text-xs text-slate-400">({{ $destination->reviews_count }})</span>
+                                    </div>
+                                @else
+                                    <span class="text-xs text-slate-400">No reviews yet</span>
+                                @endif
                             </td>
                             <td class="px-6 py-4 text-right">
                                 <div class="flex items-center justify-end gap-2">

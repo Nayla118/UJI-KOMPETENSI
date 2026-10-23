@@ -12,7 +12,9 @@ import com.naylaaisyah.traveloapp.ui.screens.booking.BookingScreen
 import com.naylaaisyah.traveloapp.ui.screens.destination.DestinationDetailScreen
 import com.naylaaisyah.traveloapp.ui.screens.explore.ExploreScreen
 import com.naylaaisyah.traveloapp.ui.screens.home.HomeScreen
+import com.naylaaisyah.traveloapp.ui.screens.my_bookings.CompleteDocumentsScreen
 import com.naylaaisyah.traveloapp.ui.screens.my_bookings.MyBookingsScreen
+import com.naylaaisyah.traveloapp.ui.screens.my_bookings.TicketHistoryScreen
 import com.naylaaisyah.traveloapp.ui.screens.payment.PaymentResultScreen
 import com.naylaaisyah.traveloapp.ui.screens.payment.PaymentScreen
 import com.naylaaisyah.traveloapp.ui.screens.profile.ProfileScreen
@@ -21,7 +23,8 @@ import com.naylaaisyah.traveloapp.ui.screens.tour_package.TourPackageDetailScree
 @Composable
 fun NavGraph(
     navController: NavHostController,
-    startDestination: String = Screen.Login.route
+    startDestination: String = Screen.Login.route,
+    onLogout: () -> Unit = {}
 ) {
     NavHost(
         navController = navController,
@@ -72,6 +75,9 @@ fun NavGraph(
                 },
                 onExploreClick = {
                     navController.navigate(Screen.Explore.route)
+                },
+                onCompleteDocuments = { bookingId ->
+                    navController.navigate(Screen.CompleteDocuments.createRoute(bookingId))
                 }
             )
         }
@@ -219,7 +225,32 @@ fun NavGraph(
                 onBackClick = { navController.popBackStack() },
                 onPayBooking = { bookingId ->
                     navController.navigate(Screen.Payment.createRoute(bookingId))
+                },
+                onCompleteDocuments = { bookingId ->
+                    navController.navigate(Screen.CompleteDocuments.createRoute(bookingId))
+                },
+                onTicketHistoryClick = {
+                    navController.navigate(Screen.TicketHistory.route)
                 }
+            )
+        }
+
+        // Used and expired tickets are read-only history; no active e-ticket.
+        composable(Screen.TicketHistory.route) {
+            TicketHistoryScreen(
+                onBackClick = { navController.popBackStack() }
+            )
+        }
+
+        // Resume an interrupted identity-document upload for an existing booking.
+        composable(
+            route = Screen.CompleteDocuments.route,
+            arguments = listOf(
+                navArgument("bookingId") { type = NavType.IntType }
+            )
+        ) {
+            CompleteDocumentsScreen(
+                onBackClick = { navController.popBackStack() }
             )
         }
         
@@ -230,11 +261,10 @@ fun NavGraph(
                 onMyBookings = {
                     navController.navigate(Screen.MyBookings.route)
                 },
-                onLogout = {
-                    navController.navigate(Screen.Login.route) {
-                        popUpTo(Screen.Home.route) { inclusive = true }
-                    }
-                }
+                onTicketHistory = {
+                    navController.navigate(Screen.TicketHistory.route)
+                },
+                onLogout = onLogout
             )
         }
     }

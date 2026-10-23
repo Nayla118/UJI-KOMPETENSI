@@ -8,6 +8,7 @@ import androidx.activity.compose.setContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,7 +16,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
@@ -29,20 +30,25 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.naylaaisyah.traveloapp.ui.theme.PlumInk
+import com.naylaaisyah.traveloapp.MainActivity
+import com.naylaaisyah.traveloapp.R
 import com.naylaaisyah.traveloapp.ui.theme.PlumMuted
 import com.naylaaisyah.traveloapp.ui.theme.Rosewood
 import com.naylaaisyah.traveloapp.ui.theme.VanillaCream
 import com.naylaaisyah.traveloapp.ui.theme.TraveloAppTheme
+import com.naylaaisyah.traveloapp.util.SessionManager
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.delay
+import javax.inject.Inject
 
 @SuppressLint("CustomSplashScreen")
 @AndroidEntryPoint
 class SplashActivity : ComponentActivity() {
+    @Inject
+    lateinit var sessionManager: SessionManager
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
@@ -53,7 +59,16 @@ class SplashActivity : ComponentActivity() {
                 ) {
                     SplashContent(
                         onFinished = {
-                            startActivity(Intent(this, LoginActivity::class.java))
+                            // A stored Sanctum token means the user already has
+                            // a backend session. Let the first authenticated API
+                            // call decide whether it is still valid; an expired
+                            // token is handled centrally by SessionManager.
+                            val destination = if (sessionManager.isLoggedIn()) {
+                                MainActivity::class.java
+                            } else {
+                                LoginActivity::class.java
+                            }
+                            startActivity(Intent(this, destination))
                             finish()
                         }
                     )
@@ -85,14 +100,12 @@ private fun SplashContent(onFinished: () -> Unit) {
             enter = fadeIn(animationSpec = tween(durationMillis = 420))
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    text = "Travelo",
-                    style = MaterialTheme.typography.displayLarge,
-                    fontWeight = FontWeight.ExtraBold,
-                    letterSpacing = (-0.8).sp,
-                    color = PlumInk
+                Image(
+                    painter = painterResource(id = R.drawable.travelo_logo),
+                    contentDescription = "Travelo",
+                    modifier = Modifier.size(176.dp)
                 )
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(10.dp))
                 Text(
                     text = "Plan your trip with ease",
                     style = MaterialTheme.typography.bodyMedium,

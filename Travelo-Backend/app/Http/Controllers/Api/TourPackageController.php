@@ -17,7 +17,11 @@ class TourPackageController extends Controller
     public function index(Request $request): JsonResponse
     {
         try {
-            $query = TourPackage::with('destination');
+            $query = TourPackage::query()
+                ->with(['destination' => fn ($destination) => $destination
+                    ->withAvg('publishedReviews as reviews_avg_rating', 'rating')
+                    ->withCount('publishedReviews as reviews_count')])
+                ->withCount('bookings');
 
             // Search functionality
             if ($request->has('search') && $request->search) {
@@ -37,7 +41,9 @@ class TourPackageController extends Controller
 
             return response()->json([
                 'success' => true,
-                'data' => $tourPackages->items(),
+                'data' => $tourPackages->getCollection()
+                    ->map(fn (TourPackage $package) => (new TourPackageResource($package))->resolve())
+                    ->values(),
                 'meta' => [
                     'current_page' => $tourPackages->currentPage(),
                     'last_page' => $tourPackages->lastPage(),
@@ -63,11 +69,16 @@ class TourPackageController extends Controller
     public function show(int $id): JsonResponse
     {
         try {
-            $tourPackage = TourPackage::with(['destination', 'bookings'])->findOrFail($id);
+            $tourPackage = TourPackage::query()
+                ->with(['destination' => fn ($destination) => $destination
+                    ->withAvg('publishedReviews as reviews_avg_rating', 'rating')
+                    ->withCount('publishedReviews as reviews_count')])
+                ->withCount('bookings')
+                ->findOrFail($id);
 
             return response()->json([
                 'success' => true,
-                'data' => $tourPackage,
+                'data' => (new TourPackageResource($tourPackage))->resolve(),
             ]);
         } catch (\Exception $e) {
             \Log::error('Tour package show error: ' . $e->getMessage());
@@ -86,14 +97,20 @@ class TourPackageController extends Controller
     public function byDestination(int $destinationId, Request $request): JsonResponse
     {
         try {
-            $tourPackages = TourPackage::with('destination')
+            $tourPackages = TourPackage::query()
+                ->with(['destination' => fn ($destination) => $destination
+                    ->withAvg('publishedReviews as reviews_avg_rating', 'rating')
+                    ->withCount('publishedReviews as reviews_count')])
+                ->withCount('bookings')
                 ->where('destination_id', $destinationId)
                 ->latest()
                 ->paginate($request->per_page ?? 15);
 
             return response()->json([
                 'success' => true,
-                'data' => $tourPackages->items(),
+                'data' => $tourPackages->getCollection()
+                    ->map(fn (TourPackage $package) => (new TourPackageResource($package))->resolve())
+                    ->values(),
                 'meta' => [
                     'current_page' => $tourPackages->currentPage(),
                     'last_page' => $tourPackages->lastPage(),

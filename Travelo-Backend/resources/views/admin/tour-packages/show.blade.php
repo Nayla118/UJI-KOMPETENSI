@@ -147,7 +147,13 @@
                             </svg>
                             Rating
                         </span>
-                        <span class="font-medium text-gray-800">{{ number_format($tourPackage->rating, 1) }}</span>
+                        <span class="font-medium text-gray-800">
+                            @if (($tourPackage->destination?->reviews_count ?? 0) > 0)
+                                {{ number_format($tourPackage->destination->reviews_avg_rating, 1) }} ({{ $tourPackage->destination->reviews_count }})
+                            @else
+                                No reviews yet
+                            @endif
+                        </span>
                     </div>
                 </div>
             </div>

@@ -16,7 +16,9 @@ class DestinationController extends Controller
      */
     public function index(Request $request): View
     {
-        $query = Destination::query();
+        $query = Destination::query()
+            ->withAvg('publishedReviews as reviews_avg_rating', 'rating')
+            ->withCount('publishedReviews as reviews_count');
 
         // Search functionality
         if ($request->has('search') && $request->search) {
@@ -60,7 +62,6 @@ class DestinationController extends Controller
             'country' => 'required|string|max:255',
             'description' => 'nullable|string',
             'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048',
-            'rating' => 'nullable|numeric|min:0|max:5',
         ]);
 
         if ($request->hasFile('image')) {
@@ -92,7 +93,6 @@ class DestinationController extends Controller
             'country' => 'required|string|max:255',
             'description' => 'nullable|string',
             'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048',
-            'rating' => 'nullable|numeric|min:0|max:5',
         ]);
 
         if ($request->hasFile('image')) {
@@ -116,7 +116,10 @@ class DestinationController extends Controller
      */
     public function show(Destination $destination): View
     {
-        $destination->load(['tourPackages']);
+        $destination->load(['tourPackages' => fn ($query) => $query->withCount('bookings')]);
+        $destination->loadAvg('publishedReviews as reviews_avg_rating', 'rating');
+        $destination->loadCount('publishedReviews as reviews_count');
+
         return view('admin.destinations.show', compact('destination'));
     }
 

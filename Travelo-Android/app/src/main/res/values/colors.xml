@@ -32,5 +32,5 @@
 
     <!-- Used by the platform theme and the launcher foreground. -->
     <color name="vanilla_cream">#FFF9F7</color>
-    <color name="white">#FFFFFF</color>
+    <color name="travelo_icon_background">#FFAFD0</color>
 </resources>

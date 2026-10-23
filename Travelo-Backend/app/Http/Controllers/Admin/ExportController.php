@@ -56,7 +56,11 @@ class ExportController extends Controller
     {
         $format = $request->input('format', 'csv');
 
-        $destinations = Destination::with('tourPackages')->get();
+        $destinations = Destination::query()
+            ->with('tourPackages')
+            ->withAvg('publishedReviews as reviews_avg_rating', 'rating')
+            ->withCount('publishedReviews as reviews_count')
+            ->get();
 
         $data = $this->exportService->destinationsToArray($destinations);
 
