@@ -3,7 +3,7 @@
 Satu file pengganti semua `.md` yang sebelumnya tersebar di project.
 File-file lama yang redundan / histori fix sudah dihapus.
 
-Terakhir diperbarui: 2026-10-23
+Terakhir diperbarui: 2026-10-26
 
 ---
 
@@ -19,6 +19,12 @@ Terakhir diperbarui: 2026-10-23
 9. [Identitas Pengunjung & Lifecycle Tiket](#9-identitas-pengunjung--lifecycle-tiket)
 10. [Ulasan Kunjungan Terverifikasi](#10-ulasan-kunjungan-terverifikasi)
 11. [Foto Profil](#11-foto-profil)
+12. [Kuota per Tanggal, Pembatalan Booking, dan Push](#12-kuota-per-tanggal-pembatalan-booking-dan-push)
+13. [Wishlist / Favorit Saya](#13-wishlist--favorit-saya)
+14. [Filter, Sort, dan Pagination Katalog](#14-filter-sort-dan-pagination-katalog)
+15. [Promo dan Voucher](#15-promo-dan-voucher)
+16. [Batas Waktu Pembayaran dan Auto-Expire](#16-batas-waktu-pembayaran-dan-auto-expire)
+17. [Laporan dan Analitik Admin](#17-laporan-dan-analitik-admin)
 
 ---
 
@@ -130,6 +136,67 @@ Snap. Verifikasi yang dilakukan adalah unit test mapping status, kompilasi,
 lint, dan build APK; alur pembayaran nyata di emulator/perangkat belum diuji
 ulang pada pass ini karena membutuhkan akun dan transaksi Midtrans.
 
+### 3.1 Batas waktu pembayaran & auto-expire
+
+Setiap booking baru mendapat `payment_expires_at = now + TRAVELO_PAYMENT_TTL_MINUTES`
+(default 60 menit). Respons `POST /api/bookings`, `GET /api/bookings/{id}`, dan
+`GET /api/bookings/{id}/payment-status` menyertakan:
+
+- `payment_expires_at` — deadline absolut (ISO-8601 UTC, akhiran `Z`),
+- `payment_expires_in_seconds` — sisa detik dihitung jam server,
+- `payment_expired` — `true` bila deadline sudah lewat (dan pembayaran bukan `paid`),
+- `server_time` — jam server sebagai pembanding.
+
+Android memakai `payment_expires_in_seconds` sebagai anchor dan hanya mengurangi
+waktu monotonik perangkat; jam dinding perangkat tidak dipercaya. Saat mencapai
+`00:00`, layar pembayaran dan kartu booking menampilkan **Kedaluwarsa**,
+menonaktifkan pembayaran, dan menawarkan **Pesan ulang** ke detail paket.
+
+Konfigurasi `.env` backend:
+
+```env
+TRAVELO_PAYMENT_TTL_MINUTES=60
+TRAVELO_EXPIRE_MIDTRANS=true
+```
+
+Arti status saat kedaluwarsa:
+
+- `bookings.booking_status` → `cancelled` (konvensi yang sama dengan webhook
+  Midtrans `expire`),
+- `bookings.payment_status` dan `payments.payment_status` → `expired`,
+- kuota dan redemption promo dilepas otomatis (observer booking + pengecekan
+  `AvailabilityService`).
+
+Scheduler:
+
+```bash
+# cron produksi, setiap menit
+* * * * * cd /path/ke/Travelo-Backend && php artisan schedule:run >> /dev/null 2>&1
+
+# alternatif saat development
+php artisan schedule:work
+
+# menjalankan manual satu kali
+php artisan travelo:expire-unpaid-bookings
+```
+
+`travelo:expire-unpaid-bookings` terdaftar di `routes/console.php` dengan
+`everyMinute()->withoutOverlapping()`. Setiap booking diproses dalam transaksi
+dengan `lockForUpdate()` dan pengecekan status terbaru, sehingga:
+
+- booking yang sudah `paid` tidak pernah dibatalkan walau baris booking sempat
+  terlihat `pending` (webhook menang),
+- dua kali eksekusi tidak menghasilkan efek ganda (idempoten),
+- kegagalan API expire Midtrans hanya dicatat di log dan tidak membatalkan
+  pelepasan kuota lokal.
+
+Webhook `paid` yang datang setelah expiry tidak serta-merta menghidupkan tiket:
+kapasitas tanggal dicek ulang. Bila masih ada kursi, booking dihidupkan kembali
+(`confirmed`/`paid`) dan promo yang sempat dilepas dipulihkan. Bila kursi sudah
+habis, pembayaran tetap dicatat `paid` untuk refund manual, booking tetap
+`cancelled`, activity log `Late payment requires refund` ditulis, dan traveller
+menerima push. Keputusan ini juga dicatat di `storage/logs/laravel.log`.
+
 ---
 
 ## 4. Endpoint Payment Penting
@@ -154,7 +221,9 @@ curl -X POST "http://localhost:8000/api/bookings/1/payment/verify-and-sync" \
   -H "Authorization: Bearer TOKEN"
 ```
 
-Status: `pending` → nunggu bayar, `paid` → booking `confirmed`, `failed`/`expired` → booking `cancelled`.
+Status: `pending` → nunggu bayar, `paid` → booking `confirmed`, `failed`/`expired`
+→ booking `cancelled`. `expired` juga dipakai untuk booking yang melewati
+`payment_expires_at` (lihat bagian 3.1).
 
 DB: tabel `payments` punya kolom `midtrans_order_id` + `paid_at`. Migrasi sudah di-apply (`php artisan migrate`).
 
@@ -322,7 +391,7 @@ Booking lama yang tidak memiliki baris pengunjung tetap dapat e-ticket
 - Login admin punya label, autocomplete, target 48px, pesan error
   danger-tinted, dan logo existing. Staff diarahkan ke `/admin/scanner`;
   admin tetap ke dashboard.
-- Halaman `/admin/scanner` tersedia untuk `admin` dan `staff`: kamera QR
+- Halaman `/admin/scanner` tersedia untuk `admin` dan `owner`: kamera QR
   yang mulai otomatis di HTTPS/localhost, pemilih kamera (preferensi kamera
   belakang), upload screenshot QR, input token manual, cakupan destinasi, dan
   popup hasil sukses/used/expired/not-paid/forbidden. QR yang terdeteksi
@@ -477,6 +546,8 @@ mengembalikan **429** karena cooldown. Isi inbox tidak diperiksa otomatis.
   `.env.example`): `FIREBASE_PROJECT_ID`, `MIDTRANS_SERVER_KEY`,
   `MIDTRANS_IS_PRODUCTION`, `MIDTRANS_MERCHANT_ID`, `BREVO_API_KEY`,
   `MAIL_MAILER`, dan `TRAVELO_ADMIN_PASSWORD` (untuk seeder).
+  Untuk refund otomatis: `TRAVELO_AUTO_REFUND` (default `false`; set `true`
+  untuk memproses refund lewat Midtrans Refund API via antrean).
   Untuk identitas/tiket opsional: `TRAVELO_IDENTITY_DISK` (default `local`),
   `TRAVELO_IDENTITY_MAX_KB` (default `5120`),
   `TRAVELO_IDENTITY_RETENTION_DAYS` (default `90`),
@@ -642,11 +713,10 @@ reissue resmi oleh admin. **Satu token/QR berlaku untuk satu booking**
 
 | Method | Endpoint | Hak akses |
 |---|---|---|
-| `GET` | `/admin/scanner` | `admin` atau `staff` |
-| `POST` | `/admin/tickets/redeem` | `staff` sesuai destinasi atau `admin` |
-| `POST` | `/admin/bookings/{booking}/ticket/reissue` | `admin` |
-| `PATCH` | `/admin/visitors/{visitor}/document-review` | `staff`/`admin` sesuai destinasi |
-| `GET` | `/admin/visitors/{visitor}/document` | `staff`/`admin` sesuai destinasi |
+| `GET` | `/admin/scanner` | `admin` atau `owner` |
+| `POST` | `/admin/tickets/redeem` | `owner` sesuai destinasi atau `admin` |
+| `PATCH` | `/admin/visitors/{visitor}/document-review` | `owner`/`admin` sesuai destinasi |
+| `GET` | `/admin/visitors/{visitor}/document` | `owner`/`admin` sesuai destinasi |
 
 Redeem memakai satu conditional `UPDATE ... WHERE ticket_status = 'unused'`
 dan memeriksa jumlah baris terpengaruh. Double scan (termasuk bersamaan)
@@ -844,6 +914,725 @@ terlalu besar, serta foto custom yang tetap bertahan setelah sign-in Firebase.
 Hasil: **4 passed**, 19 assertions. Verifikasi visual di perangkat/emulator
 belum dilakukan pada pass ini karena `adb`/emulator tidak tersedia; yang sudah
 diverifikasi adalah unit test, lint, kompilasi, dan build APK.
+
+---
+
+## 12. Kuota per Tanggal, Pembatalan Booking, dan Push
+
+Tiga fitur operasional yang saling melengkapi. Semuanya sudah diimplementasikan
+di backend dan Android, tetapi pengiriman push sungguhan masih menunggu
+kredensial Firebase yang valid (lihat batasan di bagian akhir).
+
+### 12.1 Kuota per tanggal
+
+Kapasitas default setiap tanggal berasal dari `tour_packages.max_people`.
+Admin dapat menimpa kapasitas satu tanggal atau menutupnya lewat tabel
+`tour_package_date_availabilities`:
+
+| Kolom | Arti |
+|---|---|
+| `tour_package_id`, `date` | unik per paket + tanggal |
+| `capacity` | `null` = pakai `max_people`; angka = override |
+| `is_closed` | tanggal tidak bisa dibooking sama sekali |
+| `note` | alasan internal/tampilan admin |
+
+Perhitungan kursi terisi hanya menghitung booking dengan `booking_status`
+`pending`, `confirmed`, atau `completed` dan `payment_status` bukan `failed`
+atau `expired`. Booking `cancelled` otomatis melepas kursinya.
+
+Endpoint publik:
+
+| Method | Endpoint | Keterangan |
+|---|---|---|
+| `GET` | `/api/tour-packages/{id}/availability?month=YYYY-MM&people=2` | Kapasitas, sisa kursi, status tutup, dan override per hari |
+
+Admin mengelola override di **Tour Packages → Availability**
+(`admin.tour-packages.availability`), termasuk membuat, mengubah, dan menghapus
+override. Halaman ini memakai middleware `role:admin`.
+
+Pembuatan booking (`POST /api/bookings`) mengunci baris tour package di dalam
+transaksi, lalu memeriksa ulang kapasitas tanggal tersebut. Jika penuh atau
+ditutup, respons `409` berisi `success = false` dan `data.reason` `full` atau
+`closed` beserta `remaining`. Dengan begitu dua permintaan bersamaan tidak bisa
+menjual kursi yang sama.
+
+Android memuat tampilan bulan lewat `AvailabilityRules` dan
+`BookingViewModel.loadAvailability()`. Tanggal yang tutup atau kursinya kurang
+menampilkan pesan sisa kursi dan memblokir tombol lanjut. Jika pemuatan
+availability gagal, form tetap boleh dikirim karena server tetap memvalidasi.
+Perubahan jumlah pelancong langsung dihitung ulang dari `remaining`.
+
+### 12.2 Pembatalan dengan approval admin
+
+Pembatalan bukan aksi langsung. Traveller mengirim **permintaan**; booking baru
+berubah setelah admin menyetujuinya. Perubahan tanggal (reschedule) tidak
+didukung — pembatalan adalah satu-satunya perubahan booking. Data disimpan di
+`booking_change_requests`:
+
+| Kolom | Arti |
+|---|---|
+| `booking_id`, `user_id` | pemilik dan booking terkait |
+| `type` | selalu `cancellation` |
+| `status` | `pending`, `approved`, `rejected`, `cancelled` |
+| `original_booking_date` | tanggal kunjungan saat permintaan dibuat |
+| `reason` | alasan dari traveller (opsional, maks. 1000) |
+| `admin_note` | catatan keputusan admin |
+| `reviewed_by`, `reviewed_at` | admin dan waktu keputusan |
+| `refund_status` | `not_applicable`, `pending`, `processing`, `refunded`, `failed` |
+| `refund_percentage`, `refund_amount` | snapshot persentase dan nominal refund saat disetujui |
+| `refund_reference` | referensi refund (otomatis via Midtrans atau catatan manual) |
+| `refund_note`, `refunded_at` | bukti refund manual |
+| `refund_failure_reason` | alasan gagal jika refund otomatis gagal |
+
+Kolom `requested_date` masih ada di database dari desain reschedule lama, tetapi
+sudah tidak ditulis maupun dibaca oleh aplikasi. Kolom itu sengaja tidak
+dihapus agar tidak ada migrasi destruktif.
+
+Syarat pengajuan (diperiksa ulang di server):
+
+1. Booking milik akun yang login.
+2. `payment_status = paid` dan `booking_status = confirmed`.
+3. Tanggal kunjungan belum lewat.
+4. Tiket belum dipakai (`ticket_usage_status = unused`).
+5. Tidak ada permintaan lain yang masih `pending` untuk booking itu.
+
+Saat admin menyetujui, `booking_status` menjadi `cancelled` dan `refund_status`
+diisi berdasarkan kebijakan refund bertingkat (`config/travelo.php`,
+bagian `refund`):
+
+- `>= 7 hari sebelum kunjungan`: 100% nominal yang dibayar (termasuk diskon promo)
+- `3-6 hari sebelum kunjungan`: 50%
+- `< 3 hari sebelum kunjungan`: 0% → `refund_status = not_applicable`
+
+Snapshot persentase + nominal disimpan pada kolom `refund_percentage` dan
+`refund_amount` waktu approval, sehingga perubahan kebijakan nantinya tidak
+mengubah refund yang sudah disetujui.
+
+Jika `TRAVELO_AUTO_REFUND=true` dan nominal lebih dari 0, refund diproses
+otomatis via antrean (`ProcessAutoRefund`) yang memanggil Midtrans Refund API
+dengan kunci idempotensi (`travelo_refund_<id_change_request>`). Status
+berurutan `processing` → `refunded` (sukses) atau `failed` (gagal, dengan
+alasan tersimpan). Gagal gateway tidak membatalkan keputusan admin dan tidak
+menghasilkan refund ganda: admin dapat mencoba ulang (retry) dari panel admin,
+yang mengantrekan ulang job yang sama.
+
+Jika `TRAVELO_AUTO_REFUND=false` (default), refund tetap manual: admin menandai
+`refunded` setelah saldo dikembalikan lewat luar aplikasi. Kedua jalur
+mengirim push notification hasil keputusan ke traveller.
+
+Penolakan tidak mengubah booking.
+
+Setiap transisi dicatat di `activity_logs` (permintaan dibuat, disetujui,
+ditolak, refund ditandai). Penolakan wajib menyertakan `admin_note` minimal 3
+karakter.
+
+Endpoint API:
+
+| Method | Endpoint | Akses | Keterangan |
+|---|---|---|---|
+| `GET` | `/api/bookings/{id}/change-requests` | pemilik | Riwayat maksimal 20 permintaan |
+| `POST` | `/api/bookings/{id}/change-requests` | pemilik | Kirim permintaan pembatalan (`type` opsional, hanya `cancellation`) |
+
+Antrean admin ada di **Change Requests** (`admin.change-requests.index`) dengan
+aksi approve, reject, dan tandai refund. Booking juga mengekspos
+`latest_change_request` pada `/api/my-bookings` agar Android bisa menampilkan
+status terakhir.
+
+Di Android, kartu booking yang memenuhi syarat menampilkan tombol **Cancel
+booking**. Tombol ini membuka dialog konfirmasi yang menjelaskan bahwa
+pembatalan menunggu review admin. Status `pending`, `approved`, atau `rejected`
+(beserta catatan admin) tampil di kartu, dan tombol aksi disembunyikan selama
+masih ada permintaan `pending`. Booking yang sudah `cancelled` menampilkan
+keterangan pembatalan dan tidak lagi menawarkan e-ticket maupun pembayaran
+ulang.
+
+### 12.3 Push notification (FCM)
+
+Token perangkat disimpan di `device_tokens` (unik per token). Token yang sama
+didaftarkan ulang akan dipindahkan ke akun yang sedang login, sehingga perangkat
+bersama tidak menerima push akun sebelumnya. Logout menghapus token perangkat
+milik sesi tersebut.
+
+| Method | Endpoint | Akses |
+|---|---|---|
+| `POST` | `/api/device-tokens` | login |
+| `DELETE` | `/api/device-tokens` | login (token milik sendiri) |
+
+Notifikasi yang dikirim `PushNotificationService` memakai payload **data-only**
+dengan format standar:
+
+| `type` | `screen` | ID |
+|---|---|---|
+| `payment_paid` | `e_ticket` | `booking_id` |
+| `payment_failed`, `payment_expired`, `payment_after_expiry`, `payment_update` | `booking_detail` | `booking_id` |
+| `ticket_used`, `trip_reminder` | `e_ticket` | `booking_id` |
+| `change_request_approved`, `change_request_rejected`, `change_request_pending`, `change_request_updated` | `booking_detail` | `booking_id`, `change_request_id` |
+| `review_moderated` | `review` | `destination_id`, `review_id` |
+
+`title` dan `body` juga dikirim di dalam `data`, sehingga Firebase SDK tidak
+menampilkan notifikasi sendiri. `TraveloMessagingService` selalu membuat
+notifikasi dan `PendingIntent` ke `MainActivity` dengan extras `type`, `screen`,
+dan id terkait. Dengan begitu jalur tap-nya sama untuk foreground, background,
+cold start, maupun warm start.
+
+Payload tidak pernah memuat token tiket, dokumen identitas, nomor identitas,
+email, telepon, nominal, atau daftar pengunjung. Data sensitif tetap hanya bisa
+diambil lewat API yang memeriksa kepemilikan.
+
+Jenis notifikasi yang dikirim:
+
+- hasil pembayaran (`paid`, `failed`, `expired`),
+- tiket discan di gerbang,
+- keputusan permintaan pembatalan,
+- hasil moderasi ulasan (dipanggil dari `ReviewService::moderate`),
+- pengingat perjalanan H-1 lewat command terjadwal
+  `travelo:send-trip-reminders` (idempoten dalam satu hari).
+
+Seluruh pengiriman bersifat **best-effort**. Jika service account Firebase
+belum valid, `PushNotificationService::isConfigured()` mengembalikan `false`,
+pengiriman dilewati dan dicatat di log. Alur booking, pembayaran, scan tiket,
+moderasi, dan perubahan booking tidak pernah gagal karena push.
+
+Di Android:
+
+- dependency `firebase-messaging-ktx` (BOM Firebase yang sudah ada),
+- channel `travelo_updates` dibuat di `TraveloApp`,
+- `TraveloMessagingService` menangani token baru dan **semua** pesan data-only
+  (foreground/background/cold start), lalu memanggil `TraveloNotifications`,
+- `TraveloNotifications` membuat `PendingIntent` ke `MainActivity` dengan
+  extras `type`, `screen`, dan id; `MainActivity` memakai `launchMode="singleTop"`
+  agar tap saat aplikasi terbuka masuk lewat `onNewIntent`,
+- `DeepLinkParser` (Kotlin murni, tanpa Android) memetakan extras ke
+  `DeepLinkTarget`: `booking_detail`, `e_ticket`, `review`, atau `destination`,
+- `DeepLinkController` menyimpan tujuan yang belum bisa dijalankan (cold start
+  sebelum NavHost siap, atau pengguna belum login),
+- `NavGraph` mengarahkan target dengan `popUpTo(Home)`, sehingga back dari layar
+  hasil deep link kembali ke Home tanpa menduplikasi stack,
+- login sukses melanjutkan target yang tersimpan; booking 403/404 menampilkan
+  pesan ramah lalu membuka **Booking Saya**,
+- `PushTokenStore` menyimpan token di preferences terpisah agar tidak terhapus
+  saat `SessionManager.clearSession()`,
+- `PushRegistrar` mendaftarkan token saat login, saat aplikasi dibuka dengan
+  sesi aktif, dan setelah token berotasi; unregister dilakukan saat logout,
+- izin `POST_NOTIFICATIONS` diminta di Android 13+ setelah login.
+
+Agar push benar-benar terkirim, isi service account Firebase yang valid di
+`Travelo-Backend/storage/app/firebase-auth.json` (field `private_key` tidak
+boleh kosong) atau arahkan `FIREBASE_CREDENTIALS` ke file JSON lain, lalu:
+
+```cmd
+php artisan config:clear
+php artisan cache:clear
+```
+
+Untuk pengingat harian, daftarkan scheduler di cron produksi:
+
+```cmd
+php artisan schedule:run
+```
+
+### 12.4 Verifikasi
+
+Backend (`php artisan test`):
+
+- **267 passed**, 1.634 assertions.
+- `AvailabilityTest`: 13 tes (kapasitas default/override, tanggal tutup,
+  pelepasan kursi, endpoint publik, penolakan booking penuh/tutup, akses admin).
+- `BookingChangeRequestTest`: 14 tes (pengajuan pembatalan, penolakan
+  reschedule, kepemilikan, satu permintaan pending, validasi tanggal
+  kunjungan, approval/rejection, refund manual, audit log, payload
+  `latest_change_request`).
+- `RefundPolicyTest`: **12 tes baru** (tipe refund H-7/H-3/hari H, batas hari,
+  zona waktu Asia/Jakarta, booking belum dibayar, tiket sudah dipakai,
+  diskon promo, preview endpoint hanya pemilik, otorisasi).
+- `PushNotificationTest`: 16 tes. Enam tes baru menangkap pesan yang dikirim ke
+  `Messaging` dan memastikan setiap tipe memakai `type`/`screen`/id yang benar,
+  payload data-only tanpa blok `notification`, serta tidak memuat token tiket,
+  dokumen identitas, email, telepon, nominal, atau data pengunjung.
+- `WishlistTest`: 12 tes (toggle destinasi/paket, validasi item, unique
+  constraint, daftar terbaru dulu + ringkasan item, filter tipe, ownership,
+  `is_wishlisted` untuk pemilik/user lain/token invalid).
+
+Migrasi `2026_10_25_000001` sampai `2026_10_25_000003` sudah dijalankan pada
+database SQLite development. Tidak ada reset atau penghapusan data.
+
+Android:
+
+- `testDebugUnitTest`: **152 tes, 0 gagal** (termasuk 16 tes `DeepLinkParser`
+  untuk semua tipe notifikasi, extras tidak lengkap, screen override, dan tipe
+  tidak dikenal; 5 tes `RefundPreview` untuk pemetaan tier dan format nominal).
+- `lintDebug`: **0 errors**, 31 warnings (mayoritas warning lama; tidak ada
+  error pada kode baru).
+- `assembleDebug`: APK berhasil dibuat.
+
+Pembatalan adalah satu-satunya perubahan booking. Dialog dan tombol reschedule
+sudah dihapus dari Android; backend tetap menolak `type` selain `cancellation`
+dengan `422`.
+
+Batasan yang masih ada:
+
+- Pengiriman push nyata belum bisa diverifikasi karena
+  `storage/app/firebase-auth.json` masih berisi `private_key` kosong.
+- Verifikasi manual di perangkat/emulator belum dilakukan karena `adb` dan
+  emulator tidak tersedia di lingkungan ini. Yang terverifikasi adalah unit
+  test, lint, kompilasi, dan build APK.
+- Semua perubahan pada pass ini masih belum di-commit.
+
+---
+
+## 13. Wishlist / Favorit Saya
+
+Traveller dapat menyimpan destinasi dan paket wisata. Backend adalah sumber
+kebenaran: setiap toggle divalidasi terhadap item yang benar-benar ada, dan
+semua daftar/hapus dibatasi ke pemilik akun.
+
+### 13.1 Skema dan endpoint
+
+Migrasi aditif `2026_10_25_000004_create_wishlists_table.php` membuat tabel
+`wishlists`:
+
+| Kolom | Arti |
+|---|---|
+| `id` | primary key |
+| `user_id` | FK ke `users`, cascade delete |
+| `item_type` | enum `destination` atau `tour_package` |
+| `item_id` | id item tanpa FK polimorfik (divalidasi service) |
+| `created_at`, `updated_at` | waktu simpan, dipakai untuk urutan terbaru |
+| unique `(user_id, item_type, item_id)` | mencegah duplikat |
+| index `(user_id, created_at)` | mempercepat daftar favorit |
+
+Endpoint (semua butuh `Authorization: Bearer <token>`):
+
+| Method | Endpoint | Keterangan |
+|---|---|---|
+| `GET` | `/api/wishlist?type=destination\|tour_package&page=1&per_page=15` | Daftar favorit terbaru dulu, `meta` pagination, tiap baris berisi `item` ringkas (nama, kota/negara, gambar, harga paket, rating publik, durasi) |
+| `POST` | `/api/wishlist/toggle` | Body `{item_type, item_id}`; menambah jika belum ada, menghapus jika sudah ada; respons `{success, data: {is_wishlisted}}` |
+| `DELETE` | `/api/wishlist/{id}` | Hapus satu baris favorit; `404` jika bukan milik user |
+
+Toggle dibatasi `throttle:30,1`; daftar dan hapus `throttle:60,1`/`30,1`.
+`item_type` divalidasi enum, `item_id` harus ada di tabel yang sesuai. Ringkasan
+item pada daftar diambil dengan dua query batch (destinasi dan paket), bukan
+query per baris.
+
+### 13.2 `is_wishlisted` pada katalog publik
+
+Endpoint destinasi dan paket tetap publik. Middleware `optional.sanctum`
+memasang user hanya jika bearer token valid; token tidak ada/invalid tidak
+membuat request gagal. Controller memuat daftar id favorit sekali per request
+ke request attribute, lalu `DestinationResource`/`TourPackageResource`
+mengembalikan `is_wishlisted` hanya ketika user terautentikasi. Dengan begitu
+tidak ada N+1 saat menampilkan grid katalog.
+
+### 13.3 Android
+
+- `WishlistRepository` memanggil ketiga endpoint; `WishlistStore` singleton
+  menyimpan override optimistic yang dibagi antar layar.
+- `WishlistRules` (pure Kotlin) menghitung flip optimistic, konfirmasi nilai
+  server, dan rollback ke nilai sebelumnya.
+- `WishlistHeartButton` ditambahkan ke kartu Home/Explore, hero detail
+  destinasi/paket, dan baris favorit. Tap langsung mengubah hati; jika request
+  gagal, hati kembali ke keadaan semula dan snackbar menampilkan pesan.
+- Guest yang menekan hati diarahkan ke login (`onRequireLogin`).
+- **Favorit Saya** dibuka dari Profil → *Favorit Saya*, dengan tab Destinasi
+  dan Paket, pull state loading/error/empty, serta aksi hapus. Tap item membuka
+  detail aslinya.
+- Daftar favorit dimuat `per_page=50` per tab; belum ada UI pagination bertahap.
+
+### 13.4 Verifikasi
+
+- Backend: **219 passed**, 1.162 assertions. `WishlistTest` 12 tes / 72 assertions.
+- Android: **108 tes, 0 gagal**; `WishlistRulesTest` 10 tes untuk optimistic
+  toggle, konfirmasi, rollback, override ganda, dan mapper key.
+- `lintDebug`: 0 error, 31 warning; `assembleDebug`: APK berhasil dibuat.
+- Migrasi wishlist sudah dijalankan di database SQLite development secara
+  aditif (bukan `migrate:fresh`/reset).
+- Batasan: verifikasi visual di perangkat/emulator belum dilakukan karena
+  `adb`/emulator tidak tersedia; daftar favorit belum memuat halaman berikutnya
+  otomatis.
+
+---
+
+## 14. Filter, Sort, dan Pagination Katalog
+
+Eksplorasi katalog sekarang sepenuhnya server-side: Android hanya mengirim
+parameter, backend yang memfilter, mengurutkan, dan memotong halaman. Tidak ada
+lagi filter atau pencarian yang dijalankan di sisi klien.
+
+### 14.1 Parameter
+
+Berlaku untuk `GET /api/destinations` dan `GET /api/tour-packages`. Parameter
+tidak wajib; tanpa parameter, respons sama seperti sebelumnya (halaman 1, 15
+baris) ditambah blok `meta`.
+
+| Parameter | Nilai valid | Perilaku |
+|---|---|---|
+| `q` | teks ≤ 255 | Cari nama/kota/negara/deskripsi. Alias lama `search` tetap diterima. |
+| `category` | `pantai`, `gunung`, `budaya`, `kuliner`, `alam`, `kota` | Destinasi memakai kolom sendiri; paket mengikuti kategori destinasi. |
+| `location` | teks | Kota/negara/nama (paket: milik destinasi induknya). |
+| `country` | teks | Filter lama, pencocokan persis. |
+| `destination_id` | integer | Khusus paket. |
+| `min_price`, `max_price` | angka ≥ 0 | Untuk destinasi: ada minimal satu paket di rentang itu. |
+| `min_rating` | 0–5 | Rata-rata ulasan `published`; ulasan `hidden` tidak dihitung. |
+| `duration` | `1`, `2-3`, `4+` | Untuk destinasi: ada paket dengan durasi tersebut. |
+| `available_date` | `YYYY-MM-DD` | Ada sisa kursi pada tanggal itu. |
+| `sort` | `newest`, `price_asc`, `price_desc`, `rating_desc`, `popular` | Default `newest`. |
+| `page`, `per_page` | ≥ 1, 1–50 | Default 1 dan 15. |
+
+Nilai di luar daftar, tanggal yang salah format, `per_page > 50`, atau
+`max_price < min_price` menghasilkan `422` dengan pesan per field.
+
+Bentuk respons:
+
+```json
+{
+  "success": true,
+  "data": [],
+  "meta": { "current_page": 1, "last_page": 1, "per_page": 15, "total": 0 }
+}
+```
+
+### 14.2 Implementasi backend
+
+- **Migrasi aditif** `2026_10_25_000005_add_category_to_destinations_table.php`
+  hanya menambah kolom `category` (nullable, ber-index) bila belum ada.
+  `destinations.city`, `destinations.country`, dan `tour_packages.duration_days`
+  sudah ada sejak skema awal, jadi tidak diduplikasi. Kolom kategori juga
+  ditambahkan ke form create/edit admin dan divalidasi terhadap
+  `Destination::CATEGORIES`.
+- **`DestinationFilter`** dan **`TourPackageFilter`** memusatkan seluruh
+  filter, urutan, dan subquery agregat. Keduanya dipanggil controller sebelum
+  `paginate()`.
+- **`FilterDestinationRequest`** dan **`FilterTourPackageRequest`** memvalidasi
+  query string dan memetakan alias lama (`search` → `q`, `country` tetap,
+  `destination_id` untuk paket).
+- **Rating** memakai subquery `avg` khusus review `published`, sehingga review
+  yang disembunyikan admin tidak menaikkan/menurunkan skor maupun lolos filter
+  `min_rating`.
+- **`popular`** memakai `Booking::scopeSuccessful()`: `payment_status = paid`
+  dan `booking_status` `confirmed`/`completed`. Booking `pending`, `cancelled`,
+  atau pembayaran `failed`/`expired` tidak dihitung.
+- **`available_date`** memakai `AvailabilityService::applyAvailableOnDate()`:
+  menghormati override kapasitas, tanggal tutup, dan pelepasan kursi oleh
+  pembayaran gagal/kedaluwarsa — semantik yang sama dengan endpoint ketersediaan
+  per paket, tetapi diterapkan sebagai constraint SQL agar satu halaman cukup
+  satu query.
+- **Tanpa N+1**: `withAvg`/`withCount` untuk agregat dan correlated subquery
+  untuk urutan. `DestinationResource`/`TourPackageResource` tidak lagi
+  lazy-load relasi hanya untuk menghitung `tour_packages_count`/`bookings_count`.
+  Ada tes yang membandingkan jumlah query untuk 1 baris dan 5 baris.
+- **Seeder** destinasi dan paket ditulis idempoten (`firstOrCreate`), menambah
+  variasi harga/durasi/kategori, dan hanya mengisi `category` yang masih kosong
+  sehingga data admin tidak tertimpa.
+
+### 14.3 Android Explore
+
+- `CatalogQuery` membangun query map untuk Retrofit `@QueryMap`;
+  `CatalogPage`/`CatalogMeta` membawa `data` + `meta`, dan `ApiResponse` kini
+  memetakan blok `meta`.
+- `ExploreFilters` adalah state murni (tanpa dependensi Android): kategori,
+  rentang harga, rating minimum, durasi, tanggal, dan pilihan urutan, plus
+  `activeCount` dan `toCatalogQuery()`.
+- `ExploreViewModel` memuat destinasi dan paket secara paralel, melakukan
+  debounce pencarian 350 ms, menjaga urutan respons dengan penghitung versi
+  (respons lama tidak boleh menimpa filter baru), dan menyimpan pencarian +
+  filter ke `SavedStateHandle` agar bertahan saat rotasi/navigasi.
+- `ExploreScreen` menampilkan chip urutan, bottom sheet filter (chip kategori,
+  `RangeSlider` harga, rating minimum, durasi, dan input tanggal
+  `YYYY-MM-DD`), badge jumlah filter aktif, tombol reset, dan *infinite scroll*
+  dengan indikator loading, error + "Try again", serta empty state yang
+  membedakan "belum ada data" dan "tidak ada hasil".
+- Home tetap memakai halaman pertama (10 item) dari endpoint yang sama.
+
+### 14.4 Verifikasi
+
+- Backend: **219 passed**, 1.162 assertions; `CatalogFilterTest` 19 tes /
+  127 assertions (setiap filter, kombinasi, keempat urutan, pagination,
+  `per_page` > 50, validasi, alias lama, `available_date`, review tersembunyi,
+  dan jumlah query konstan).
+- Android: **108 tes, 0 gagal**; 21 tes baru di `CatalogQueryTest` dan
+  `ExploreFiltersTest`.
+- `lintDebug`: 0 error, 31 warning; `assembleDebug`: APK berhasil dibuat.
+- `pint --test`: lulus tanpa perubahan format.
+- Migrasi kategori dijalankan aditif di SQLite development (bukan
+  `migrate:fresh`), seeder tidak dijalankan ulang pada database tersebut.
+- Batasan: pencarian memakai `LIKE` (bukan full-text), `popular` menghitung
+  seluruh riwayat booking berhasil, dan verifikasi visual di perangkat/emulator
+  belum dilakukan karena `adb`/emulator tidak tersedia.
+
+---
+
+## 15. Promo dan Voucher
+
+Kode promo tidak pernah dihitung di klien. Android hanya menampilkan pratinjau
+yang dikembalikan server dan mengirim kode itu kembali saat booking; backend
+memvalidasi ulang di dalam transaksi yang sama dengan pembuatan booking.
+
+### 15.1 Skema
+
+Tiga migrasi aditif, tanpa mengubah atau menghapus data lama:
+
+| Migrasi | Isi |
+|---|---|
+| `2026_10_25_000006_create_promo_codes_table.php` | `code` unik (huruf besar), `description`, `discount_type` (`percent`/`fixed`), `discount_value`, `max_discount` nullable, `min_transaction`, `usage_limit` nullable, `per_user_limit`, `used_count`, `starts_at`, `expires_at`, `is_active`, `tour_package_id`/`destination_id` nullable, timestamps, soft delete |
+| `2026_10_25_000007_create_promo_redemptions_table.php` | `promo_code_id`, `user_id`, `booking_id` unik, `discount_amount`, `status` (`applied`/`released`), timestamps |
+| `2026_10_25_000008_add_promo_fields_to_bookings_table.php` | `subtotal_amount` nullable, `discount_amount` default `0`, `promo_code_id` nullable + index |
+
+`total_price` tetap menjadi jumlah akhir yang dibayar. Booking lama tidak
+memiliki `subtotal_amount`; `Booking::effectiveSubtotal()` menurunkannya dari
+`total_price + discount_amount` sehingga invoice lama tetap terbaca.
+
+### 15.2 Validasi dan perhitungan
+
+`PromoService::validate()` mengembalikan `ok`, nominal, atau `reason` yang stabil:
+
+| Reason | Arti |
+|---|---|
+| `not_found` | Kode tidak ada |
+| `inactive` | Dinonaktifkan admin |
+| `not_started` | `starts_at` belum lewat |
+| `expired` | `expires_at` sudah lewat |
+| `quota_exhausted` | `used_count >= usage_limit` |
+| `per_user_limit` | User sudah memakai sebanyak `per_user_limit` |
+| `min_transaction` | Subtotal di bawah minimum |
+| `not_applicable` | Paket/destinasi tidak cocok dengan batasan kode |
+
+Diskon persen dibatasi `max_discount`; diskon fixed diambil apa adanya. Keduanya
+di-clamp ke subtotal, jadi total tidak pernah negatif. `POST /api/promos/validate`
+(auth, throttle 30/menit) menerima `{code, tour_package_id, people, date}` dan
+mengembalikan `subtotal`, `discount`, `total`.
+
+### 15.3 Booking, kuota, dan pembayaran
+
+- `POST /api/bookings` menerima `promo_code` opsional. Booking dibuat dengan
+  `subtotal_amount`, `discount_amount`, `promo_code_id`, dan `total_price` hasil
+  hitungan server; nilai harga dari klien diabaikan.
+- Di dalam `DB::transaction`, baris promo diambil dengan `lockForUpdate`.
+  `PromoService::redeem()` menaikkan `used_count` lewat
+  `UPDATE ... WHERE used_count < usage_limit`, sehingga dua request bersamaan
+  tidak dapat memakai slot terakhir dua kali.
+- `MidtransService::buildSnapParams()` memakai `gross_amount = total_price`
+  final; baris `PROMO` negatif ditambahkan hanya sebagai rincian item.
+- `BookingObserver` memanggil `releaseForBooking()` ketika booking menjadi
+  `cancelled` atau pembayaran `failed`/`expired`. Release bersifat idempoten:
+  redemption ditandai `released` sekali, dan `used_count` tidak pernah negatif.
+- Jika pembuatan Snap token gagal dan booking dihapus, kuota dilepas lebih dulu
+  sebelum baris booking (dan redemption-nya) dihapus.
+
+### 15.4 Admin
+
+Menu **Promo Codes** (`admin.promos.*`, hanya role `admin`) menyediakan daftar
+dengan pencarian/status, statistik, form create/edit, detail, riwayat pemakaian
+per user/booking, aktif/nonaktif, dan hapus (soft delete). Validasi form mencakup
+kode unik, persen ≤ 100, `expires_at` setelah `starts_at`, dan `usage_limit`
+tidak lebih kecil dari pemakaian saat ini. Setiap create/update/toggle/delete
+dicatat ke activity log. Detail booking admin menampilkan subtotal, kode promo,
+diskon, status redemption, dan total dibayar.
+
+### 15.5 Android
+
+- `BookingViewModel` menyimpan pratinjau promo dan memanggil
+  `POST /api/promos/validate` lewat `TraveloRepository.validatePromo()`.
+- Ringkasan booking menampilkan subtotal, baris promo + diskon, dan total dari
+  respons server, dengan input kode + tombol **Apply** dan **Remove**.
+  Pratinjau dibersihkan otomatis bila tanggal atau jumlah traveler berubah.
+- `PromoErrorMessages` memetakan setiap `reason` ke pesan yang bisa ditindaklanjuti
+  (`PromoErrorMessagesTest`); kode promo tidak pernah dihitung lokal.
+- E-ticket/booking detail menampilkan subtotal, kode promo, diskon, dan total
+  yang dibayar dari payload server.
+
+### 15.6 Verifikasi
+
+- Backend: **219 passed**, 1.162 assertions. `PromoCodeTest` 24 tes / 92
+  assertions mencakup semua alasan penolakan, batas `max_discount`, fixed,
+  total tidak negatif, kuota dan limit per user pada dua request berurutan,
+  release idempoten saat batal/expired, `gross_amount` Midtrans, dan penolakan
+  user biasa dari CRUD admin.
+- Android: **108 tes, 0 gagal**; 13 tes baru untuk pemetaan alasan promo dan
+  format rupiah.
+- `lintDebug`: 0 error, 31 warning; `assembleDebug`: APK berhasil dibuat.
+- `pint --test`: lulus tanpa perubahan format.
+- Migrasi promo dijalankan aditif di SQLite development; seeder tidak dijalankan
+  ulang dan data admin tidak ditimpa.
+- Batasan: verifikasi visual di perangkat/emulator belum dilakukan karena
+  `adb`/emulator tidak tersedia di lingkungan build.
+
+---
+
+## 16. Batas Waktu Pembayaran dan Auto-Expire
+
+Fitur ini memastikan kursi yang ditahan booking `pending` tidak menggantung
+selamanya bila traveller tidak menyelesaikan pembayaran.
+
+### 16.1 Backend
+
+- Migrasi aditif `2026_10_25_000009_add_payment_expires_at_to_bookings_table`
+  menambahkan `bookings.payment_expires_at` (nullable, index). Booking lama
+  tetap `NULL` dan tidak pernah di-expire otomatis.
+- `config/travelo.php` → `payment.ttl_minutes` (env
+  `TRAVELO_PAYMENT_TTL_MINUTES`, default 60) dan
+  `payment.expire_midtrans_transaction` (env `TRAVELO_EXPIRE_MIDTRANS`).
+- `BookingController@store` mengisi deadline; payload booking menyertakan
+  `payment_expires_at`, `payment_expires_in_seconds`, `payment_expired`, dan
+  `server_time`. Endpoint payment-status memakai field yang sama.
+- `POST /api/payments/create-snap-token` menolak booking yang deadlinenya sudah
+  lewat dengan `422` + `reason=payment_expired`.
+- Snap `expiry` mengikuti sisa waktu booking, bukan hardcoded 24 jam.
+- `BookingExpiryService` + command `travelo:expire-unpaid-bookings`:
+  transaksi per booking, row lock, cek ulang status pembayaran, ubah booking
+  ke `cancelled` dan payment ke `expired`, catat activity log, kirim push,
+  lalu memanggil API expire Midtrans secara best-effort.
+- `BookingObserver` tetap menjadi satu-satunya tempat pelepasan redemption
+  promo; `PromoService::restoreForBooking()` memulihkannya bila pembayaran
+  terlambat dan booking dihidupkan kembali.
+- `MidtransService::syncBookingPaymentStatus()` mengunci baris booking bila
+  dipanggil di dalam transaksi, sehingga webhook dan scheduler tidak saling
+  menimpa. Webhook `paid` setelah expiry dicek terhadap kapasitas tanggal.
+
+### 16.2 Android
+
+- `PaymentCountdown` (pure Kotlin) menghitung sisa detik dari nilai server +
+  elapsed monotonic, memformat `mm:ss`, dan menentukan batas `Kedaluwarsa`.
+- `PaymentScreen` menampilkan banner hitung mundur, menonaktifkan pembayaran
+  saat habis, dan menampilkan tombol **Pesan ulang**.
+- Kartu booking `pending` menampilkan hitung mundur; setelah habis atau saat
+  backend sudah `expired`, kartu menampilkan **Kedaluwarsa** + **Pesan ulang**.
+- Respons payment-status yang sudah `payment_expired=true` dipetakan ke
+  `PaymentOutcome.EXPIRED`, termasuk saat scheduler belum sempat berjalan.
+- **Pesan ulang** membuka detail paket agar traveller memesan kursi baru.
+
+### 16.3 Verifikasi
+
+- Backend: **232 passed**, 1.237 assertions. `BookingPaymentExpiryTest` 13 tes
+  mencakup TTL saat pembuatan booking, field countdown, penolakan Snap token,
+  expiry + pelepasan kuota, booking `paid`/belum jatuh tempo yang tidak
+  tersentuh, idempotensi + promo, kegagalan API Midtrans, push + activity log,
+  webhook terlambat dengan kursi tersedia, dan webhook terlambat tanpa kursi
+  (refund).
+- Android: **131 tes, 0 gagal**; `PaymentCountdownTest` 21 tes untuk
+  perhitungan sisa waktu, fallback `payment_expires_at - server_time`,
+  boundary expired, format `mm:ss`, dan parsing ISO-8601. Tes outcome juga
+  mencakup `payment_expired` dari payment-status.
+- `lintDebug`: 0 error, 31 warning; `assembleDebug`: APK berhasil dibuat.
+- `pint --test`: lulus.
+- Migrasi dijalankan aditif pada SQLite development; seeder dan data admin
+  tidak dijalankan ulang/ditimpa.
+- Batasan: verifikasi visual di perangkat/emulator belum dilakukan karena
+  `adb`/emulator tidak tersedia; pengiriman FCM nyata masih belum dapat
+  diverifikasi karena `private_key` service account Firebase masih kosong.
+
+---
+
+## 17. Laporan dan Analitik Admin
+
+Halaman laporan khusus `admin` menggabungkan angka pendapatan, booking,
+okupansi, pembatalan, pengguna baru, dan rating. Dashboard admin memakai
+`ReportService` yang sama (jendela 30 hari terakhir) sehingga angka di kedua
+layar tidak bisa berbeda.
+
+### 17.1 Halaman dan filter
+
+| Item | Detail |
+|---|---|
+| Halaman | `GET /admin/reports` (`admin.reports.index`) |
+| Data chart (JSON) | `GET /admin/reports/data` (`admin.reports.data`) |
+| Export | `GET /admin/reports/export?format=csv\|pdf` (`admin.reports.export`) |
+| Filter | `start_date`, `end_date` (`YYYY-MM-DD`), `period` = `day`/`week`/`month` |
+| Default | 30 hari terakhir, `period=day` |
+| Batas | `TRAVELO_REPORTS_MAX_RANGE_DAYS` (default 366 hari); tanggal terbalik ditukar otomatis |
+| Akses | Middleware `auth` + `role:admin`; staff dan traveller mendapat `403` |
+
+Halaman menampilkan empat kartu (net revenue, booking + cancellation rate,
+okupansi, pengguna baru + rating), chart pendapatan, status booking, tren
+booking, top paket, pengguna baru, dan okupansi, serta tabel pendapatan per
+period, top 5 paket/destinasi, okupansi per paket, pembatalan/refund, dan
+distribusi rating. Filter yang tidak valid (`period` asing atau format tanggal
+salah) menghasilkan `422` pada endpoint JSON.
+
+### 17.2 Definisi metrik
+
+- **Pendapatan**: diakui saat uang diterima, memakai `payments.paid_at` dengan
+  fallback `bookings.created_at` untuk booking lama, dan hanya untuk
+  `bookings.payment_status = paid`. Pembayaran `pending`, `failed`, dan
+  `expired` tidak pernah masuk pendapatan.
+- **Refund**: dihitung pada `booking_change_requests.refunded_at` dengan
+  `refund_status = refunded`, ditampilkan sebagai seri/kartu terpisah dan tidak
+  pernah dimundurkan ke tanggal penjualan. **Net revenue = gross − refund**.
+  Karena refund adalah kejadian tersendiri, net pada satu hari bisa negatif.
+- **Top 5 paket/destinasi**: hanya booking `paid` dengan status `confirmed`
+  atau `completed`; booking `cancelled`, pending, gagal, dan refund tidak
+  dihitung sebagai penjualan.
+- **Okupansi**: kursi terisi vs kapasitas untuk rentang tanggal kunjungan.
+  Aturannya sama dengan `AvailabilityService`: status `pending`/`confirmed`/
+  `completed` menahan kursi, pembayaran `failed`/`expired` melepas kursi,
+  override `tour_package_date_availabilities` mengganti kapasitas satu tanggal,
+  dan tanggal tutup berkapasitas 0. Kapasitas paket = `max_people × jumlah
+  hari` setelah penyesuaian override.
+- **Tingkat pembatalan**: booking `cancelled` dibagi seluruh booking yang
+  dibuat pada rentang tersebut, dilengkapi status permintaan pembatalan,
+  status refund, dan lima alasan pembatalan terbanyak.
+- **Pengguna baru**: hanya `users.role = traveller`; akun admin/staff tidak
+  dihitung.
+- **Rating**: hanya ulasan `published`; ulasan `hidden` tidak masuk rata-rata
+  maupun distribusi bintang.
+
+### 17.3 Implementasi
+
+- `App\Services\ReportService` menyediakan method terpisah: `revenue()`,
+  `bookings()`, `topPackages()`, `topDestinations()`, `occupancy()`,
+  `cancellations()`, `newUsers()`, `ratings()`, serta `summary()`,
+  `chartPayload()`, dan `exportSections()`.
+- Semua agregat dijalankan dengan `GROUP BY` di database dan hanya hasil
+  agregat kecil yang diproses di PHP; tidak ada query per booking (N+1).
+  Bucket harian memakai `DATE()` yang tersedia di SQLite dan MySQL.
+- Payload `summary()` di-cache `TRAVELO_REPORTS_CACHE_TTL` detik (default 300).
+  Cache key memuat rentang tanggal dan period, jadi filter berbeda tidak pernah
+  berbagi entri. Export memakai `buildSummary()` tanpa cache agar angka selalu
+  terbaru.
+- Migrasi aditif `2026_10_26_000001_add_reporting_indexes.php` menambahkan
+  indeks `bookings(payment_status, created_at)`,
+  `bookings(booking_status, created_at)`,
+  `bookings(tour_package_id, booking_date)`, `payments(paid_at)`,
+  `booking_change_requests(refund_status, refunded_at)`, dan
+  `users(role, created_at)`.
+- Chart.js (`chart.js@^4.6.1`) dipasang lewat npm dan dibundel Vite sebagai
+  `resources/js/reports.js`; tidak ada CDN. Server mengirim data agregat
+  sebagai JSON di halaman (`#report-chart-data`), sehingga browser tidak pernah
+  menerima baris booking mentah.
+- Konfigurasi: `TRAVELO_REPORTS_CACHE_TTL` dan
+  `TRAVELO_REPORTS_MAX_RANGE_DAYS` di `config/travelo.php` bagian `reports`.
+
+### 17.4 Export
+
+- **CSV** (wajib) berisi beberapa section: ringkasan, pendapatan per period,
+  booking per status, tren booking, top paket, top destinasi, okupansi,
+  pembatalan/refund, pengguna baru, dan rating. File diunduh sebagai
+  `travelo-report_<start>_<end>.csv`.
+- **Print/PDF** mengembalikan HTML siap cetak (`text/html`, dibuka di tab
+  baru). PDF dibuat lewat **Print → Save as PDF** di browser. Ini mengikuti
+  mekanisme export yang sudah dipakai `ExportController`; tidak ada dependency
+  dompdf yang ditambahkan.
+
+### 17.5 Verifikasi
+
+- Backend: **249 test lulus**, 1.477 assertions. `ReportServiceTest` berisi
+  17 test / 240 assertions dengan data terkontrol:
+  - pendapatan hanya dari pembayaran `paid` (pending/failed dikecualikan),
+    gross 8.500.000, refund 1.000.000, net 7.500.000, refund pada tanggalnya
+    sendiri;
+  - top paket/destinasi mengabaikan booking belum lunas dan batal;
+  - okupansi menghormati override kapasitas dan tanggal tutup;
+  - tingkat pembatalan, pengguna baru (traveller saja), dan rating published;
+  - cache per kombinasi filter dan bypass cache saat export;
+  - filter tanggal/period, validasi `422`, CSV valid, HTML print, dashboard
+    yang memakai service yang sama, dan akses `403` untuk staff/traveller.
+- `npm run build` berhasil; manifest memuat bundle `reports-*.js` (Chart.js
+  ikut ter-bundle).
+- `pint --test`: lulus.
+- Migrasi indeks dijalankan aditif pada SQLite development; seeder dan akun
+  admin tidak dijalankan ulang/ditimpa.
+- Batasan: export PDF berupa HTML siap cetak, bukan file PDF biner; verifikasi
+  visual di perangkat/emulator tetap belum dilakukan karena `adb`/emulator
+  tidak tersedia.
 
 ---
 

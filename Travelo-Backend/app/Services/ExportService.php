@@ -130,11 +130,49 @@ class ExportService
     }
 
     /**
+     * Generate multi-section CSV content.
+     *
+     * The generic toCsv() assumes every row has the same columns. A business
+     * report needs several labelled tables (summary, revenue, rankings...),
+     * so each section writes its title, an optional header row, its rows, and
+     * a blank separator. The result is still plain RFC-4180 CSV, readable by
+     * Excel/Sheets and by any CSV parser.
+     *
+     * @param  array<int, array{title: string, headers?: array<int, string>, rows?: array<int, array<int, mixed>>}>  $sections
+     */
+    public function sectionsToCsv(array $sections): string
+    {
+        $output = fopen('php://temp', 'r+');
+
+        foreach ($sections as $section) {
+            fputcsv($output, [(string) ($section['title'] ?? '')]);
+
+            $headers = $section['headers'] ?? [];
+
+            if (! empty($headers)) {
+                fputcsv($output, array_values($headers));
+            }
+
+            foreach ($section['rows'] ?? [] as $row) {
+                fputcsv($output, array_values($row));
+            }
+
+            fputcsv($output, []);
+        }
+
+        rewind($output);
+        $content = (string) stream_get_contents($output);
+        fclose($output);
+
+        return $content;
+    }
+
+    /**
      * Generate HTML for PDF
      */
     public function toHtml(array $data, string $title): string
     {
-        $headers = !empty($data) ? array_keys($data[0]) : [];
+        $headers = ! empty($data) ? array_keys($data[0]) : [];
 
         return View::make('admin.exports.template', [
             'title' => $title,

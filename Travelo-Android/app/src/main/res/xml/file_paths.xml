@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Files the app may hand to another app via FileProvider. Invoices are
+     written to cacheDir/invoices before the user opens or shares them. -->
+<paths>
+    <cache-path name="invoices" path="invoices/" />
+</paths>

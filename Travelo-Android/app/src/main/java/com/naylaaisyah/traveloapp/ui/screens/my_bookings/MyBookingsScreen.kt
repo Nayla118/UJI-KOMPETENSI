@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ConfirmationNumber
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.HourglassEmpty
@@ -46,11 +47,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -61,9 +65,12 @@ import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.delay
 import com.naylaaisyah.traveloapp.R
 import com.naylaaisyah.traveloapp.data.models.Booking
+import com.naylaaisyah.traveloapp.data.models.BookingChangeRequest
 import com.naylaaisyah.traveloapp.data.models.PaymentOutcome
+import com.naylaaisyah.traveloapp.data.models.canRequestCancellation
 import com.naylaaisyah.traveloapp.data.models.paymentOutcome
 import com.naylaaisyah.traveloapp.data.models.safeTitle
+import com.naylaaisyah.traveloapp.data.payments.PaymentCountdown
 import com.naylaaisyah.traveloapp.data.recovery.DocumentRecoveryJob
 import com.naylaaisyah.traveloapp.data.recovery.DocumentRecoveryRules
 import com.naylaaisyah.traveloapp.data.tickets.TicketHistoryRules
@@ -71,6 +78,7 @@ import com.naylaaisyah.traveloapp.ui.components.TraveloButton
 import com.naylaaisyah.traveloapp.ui.components.TraveloButtonSize
 import com.naylaaisyah.traveloapp.ui.components.TraveloButtonVariant
 import com.naylaaisyah.traveloapp.ui.components.TraveloCard
+import com.naylaaisyah.traveloapp.ui.components.rememberPaymentRemainingSeconds
 import com.naylaaisyah.traveloapp.ui.components.TraveloEmptyState
 import com.naylaaisyah.traveloapp.ui.components.TraveloErrorState
 import com.naylaaisyah.traveloapp.ui.components.TraveloLoadingState
@@ -91,6 +99,7 @@ import com.naylaaisyah.traveloapp.ui.theme.VanillaCream
 import com.naylaaisyah.traveloapp.ui.theme.WarningDeep
 import com.naylaaisyah.traveloapp.ui.theme.WarningTint
 import com.naylaaisyah.traveloapp.util.formatDisplayDate
+import com.naylaaisyah.traveloapp.util.formatRupiah
 
 /** Gate scans can happen while this screen stays open. */
 private const val BOOKINGS_POLL_INTERVAL_MS = 10_000L
@@ -109,13 +118,26 @@ private const val BOOKINGS_POLL_INTERVAL_MS = 10_000L
 fun MyBookingsScreen(
     onBackClick: () -> Unit,
     onPayBooking: (Int) -> Unit = {},
+    onRebookBooking: (Int) -> Unit = {},
     onCompleteDocuments: (Int) -> Unit = {},
     onTicketHistoryClick: () -> Unit = {},
+    notice: String? = null,
     viewModel: MyBookingsViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
+    val context = LocalContext.current
     val isRefreshing = uiState.isLoading && uiState.bookings.isNotEmpty()
+
+    // Deep-link fallback (booking missing or not owned) arrives as a friendly
+    // message on the screen the user is sent to.
+    LaunchedEffect(notice) {
+        notice?.takeIf { it.isNotBlank() }?.let { snackbarHostState.showSnackbar(it) }
+    }
+
+    // Only one change-request dialog can be open at a time. The request itself
+    // is advisory until an admin approves it.
+    var cancellationTarget by remember { mutableStateOf<Booking?>(null) }
 
     // Used/expired tickets are no longer active bookings: they move to Ticket
     // history and their e-ticket action disappears from this list.
@@ -165,6 +187,35 @@ fun MyBookingsScreen(
         ticketErrorMessage?.let { message ->
             snackbarHostState.showSnackbar(message)
             viewModel.clearTicketError()
+        }
+    }
+
+    LaunchedEffect(uiState.changeRequestError) {
+        uiState.changeRequestError?.let { message ->
+            snackbarHostState.showSnackbar(message)
+            viewModel.clearChangeRequestError()
+        }
+    }
+
+    LaunchedEffect(uiState.changeRequestNotice) {
+        uiState.changeRequestNotice?.let { message ->
+            snackbarHostState.showSnackbar(message)
+            viewModel.clearChangeRequestNotice()
+        }
+    }
+
+    LaunchedEffect(uiState.invoiceError) {
+        uiState.invoiceError?.let { message ->
+            snackbarHostState.showSnackbar(message)
+            viewModel.consumeInvoiceError()
+        }
+    }
+
+    LaunchedEffect(uiState.invoiceFile) {
+        val invoice = uiState.invoiceFile ?: return@LaunchedEffect
+        viewModel.consumeInvoiceFile()
+        openInvoice(context, invoice)?.let { message ->
+            snackbarHostState.showSnackbar(message)
         }
     }
 
@@ -289,10 +340,16 @@ fun MyBookingsScreen(
                         items(activeBookings, key = { it.id }) { booking ->
                             BookingCard(
                                 booking = booking,
+                                invoiceDownloading = uiState.invoiceDownloadingFor == booking.id,
                                 onPayNowClick = { onPayBooking(booking.id) },
+                                onRebookClick = { onRebookBooking(booking.tourPackageId) },
                                 onViewTicket = { viewModel.loadTicket(booking.id) },
+                                onDownloadInvoice = { viewModel.downloadInvoice(booking.id) },
                                 onCompleteDocuments = {
                                     onCompleteDocuments(booking.id)
+                                },
+                                onRequestCancellation = {
+                                    cancellationTarget = booking
                                 }
                             )
                         }
@@ -336,20 +393,56 @@ fun MyBookingsScreen(
             onDismiss = viewModel::dismissScannedTicketNotice
         )
     }
+
+    cancellationTarget?.let { booking ->
+        CancellationRequestDialog(
+            booking = booking,
+            viewModel = viewModel,
+            isSubmitting = uiState.changeRequestInFlight,
+            onDismiss = { if (!uiState.changeRequestInFlight) cancellationTarget = null },
+            onConfirm = { reason ->
+                viewModel.requestCancellation(booking.id, reason)
+                cancellationTarget = null
+            }
+        )
+    }
 }
 
 @Composable
 private fun BookingCard(
     booking: Booking,
+    invoiceDownloading: Boolean,
     onPayNowClick: () -> Unit,
+    onRebookClick: () -> Unit,
     onViewTicket: () -> Unit,
-    onCompleteDocuments: () -> Unit
+    onDownloadInvoice: () -> Unit,
+    onCompleteDocuments: () -> Unit,
+    onRequestCancellation: () -> Unit
 ) {
     val outcome = booking.paymentOutcome()
-    val needsPayment = outcome == PaymentOutcome.WAITING ||
-        outcome == PaymentOutcome.FAILED ||
-        outcome == PaymentOutcome.EXPIRED ||
-        outcome == PaymentOutcome.CANCELLED
+    val isPaid = outcome == PaymentOutcome.SUCCESS
+    val remainingSeconds = rememberPaymentRemainingSeconds(
+        serverRemainingSeconds = booking.paymentExpiresInSeconds,
+        serverExpired = booking.paymentExpired
+    )
+    // Server flag wins; a reached 00:00 also counts so a lagging scheduler can
+    // never leave a released booking's pay button active.
+    val deadlineExpired = !isPaid && PaymentCountdown.isExpired(
+        booking.paymentExpired,
+        remainingSeconds
+    )
+    val expiredUnpaid = !isPaid && (outcome == PaymentOutcome.EXPIRED || deadlineExpired)
+    val isCancelled = booking.status.equals("cancelled", ignoreCase = true)
+    // A cancellation caused by an unpaid/expired payment is not a generic
+    // admin cancellation: it must offer "Pesan ulang" instead.
+    val plainCancelled = isCancelled && !expiredUnpaid
+    val needsPayment = !isCancelled &&
+        !isPaid &&
+        !expiredUnpaid && (
+            outcome == PaymentOutcome.WAITING ||
+                outcome == PaymentOutcome.FAILED ||
+                outcome == PaymentOutcome.CANCELLED
+            )
     // Backend gate: an e-ticket stays locked until every visitor document is
     // on file. Pending/verified documents count as on file; missing/rejected/
     // purged rows need another upload.
@@ -400,6 +493,21 @@ private fun BookingCard(
             )
         }
 
+        booking.latestChangeRequest?.let { request ->
+            Spacer(Modifier.height(TraveloSpacing.xs))
+            ChangeRequestNotice(request = request)
+        }
+
+        if (booking.canRequestCancellation()) {
+            Spacer(Modifier.height(TraveloSpacing.sm))
+            TraveloButton(
+                text = "Cancel booking",
+                onClick = onRequestCancellation,
+                variant = TraveloButtonVariant.Ghost,
+                size = TraveloButtonSize.Medium
+            )
+        }
+
         Divider(
             modifier = Modifier.padding(vertical = TraveloSpacing.sm),
             color = PlumBorder
@@ -422,6 +530,7 @@ private fun BookingCard(
         }
 
         if (
+            !isCancelled &&
             outcome == PaymentOutcome.SUCCESS &&
             !needsDocuments &&
             !TicketHistoryRules.isHistoryTicket(booking)
@@ -436,15 +545,43 @@ private fun BookingCard(
             )
         }
 
-        if (needsDocuments) {
+        // Invoices stay available after a paid trip, including a paid booking
+        // that was later cancelled: the document is proof of payment.
+        if (outcome == PaymentOutcome.SUCCESS) {
+            Spacer(Modifier.height(TraveloSpacing.sm))
+            TraveloButton(
+                text = stringResource(R.string.invoice_download),
+                onClick = onDownloadInvoice,
+                variant = TraveloButtonVariant.Secondary,
+                size = TraveloButtonSize.Medium,
+                enabled = !invoiceDownloading,
+                loading = invoiceDownloading,
+                leadingIcon = Icons.Default.Download
+            )
+        }
+
+        if (plainCancelled) {
+            Spacer(Modifier.height(TraveloSpacing.sm))
+            CancelledBookingCallout()
+        }
+
+        if (needsDocuments && !isCancelled && !expiredUnpaid) {
             Spacer(Modifier.height(TraveloSpacing.sm))
             DocumentActionCallout(onCompleteDocuments = onCompleteDocuments)
+        }
+
+        if (expiredUnpaid) {
+            Spacer(Modifier.height(TraveloSpacing.sm))
+            ExpiredPaymentCallout(
+                onRebookClick = onRebookClick
+            )
         }
 
         if (needsPayment) {
             Spacer(Modifier.height(TraveloSpacing.sm))
             PaymentActionCallout(
                 outcome = outcome,
+                remainingSeconds = remainingSeconds,
                 onPayNowClick = onPayNowClick
             )
         }
@@ -576,14 +713,97 @@ private fun BookingMeta(icon: ImageVector, text: String) {
 }
 
 @Composable
+private fun ChangeRequestNotice(request: BookingChangeRequest) {
+    val (title, tint, content) = when (request.status) {
+        BookingChangeRequest.STATUS_PENDING ->
+            Triple("Cancellation pending review", WarningTint, WarningDeep)
+        BookingChangeRequest.STATUS_APPROVED ->
+            Triple("Cancellation approved", SageTint, SageDeep)
+        BookingChangeRequest.STATUS_REJECTED ->
+            Triple("Cancellation declined", DangerTint, DangerDeep)
+        else ->
+            Triple("Cancellation ${request.status}", WarningTint, WarningDeep)
+    }
+
+    val adminNote = request.adminNote?.takeIf { it.isNotBlank() }.let { note ->
+        if (request.status == BookingChangeRequest.STATUS_REJECTED && note != null) {
+            "Note: $note"
+        } else {
+            null
+        }
+    }
+
+    Surface(
+        shape = MaterialTheme.shapes.medium,
+        color = tint,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(TraveloSpacing.xs)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.labelLarge,
+                color = content
+            )
+            adminNote?.let {
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = PlumMuted
+                )
+            }
+            if (request.status == BookingChangeRequest.STATUS_APPROVED && request.refundStatus != null) {
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = "Refund: ${request.refundStatusLabel()}" +
+                        (if (request.refundPercentage != null) " · ${request.refundPercentage}%" else "") +
+                        (if (request.refundAmount != null) " · ${formatRupiah(request.refundAmount)}" else ""),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = PlumMuted
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CancelledBookingCallout() {
+    Surface(
+        shape = MaterialTheme.shapes.medium,
+        color = DangerTint,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(TraveloSpacing.sm)) {
+            Text(
+                text = "Booking cancelled",
+                style = MaterialTheme.typography.titleSmall,
+                color = DangerDeep
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                text = "This booking is no longer active. Any refund is processed manually by our team.",
+                style = MaterialTheme.typography.bodySmall,
+                color = PlumMuted
+            )
+        }
+    }
+}
+
+@Composable
 private fun PaymentActionCallout(
     outcome: PaymentOutcome,
+    remainingSeconds: Long?,
     onPayNowClick: () -> Unit
 ) {
     val (title, subtitle, buttonText) = when (outcome) {
         PaymentOutcome.WAITING -> Triple(
             "Payment pending",
-            "Complete your payment to confirm this booking.",
+            if (remainingSeconds != null && remainingSeconds > 0L) {
+                "Complete your payment within ${PaymentCountdown.format(remainingSeconds)} " +
+                    "to confirm this booking."
+            } else {
+                "Complete your payment to confirm this booking."
+            },
             "Pay now"
         )
 
@@ -666,6 +886,54 @@ private fun PaymentActionCallout(
 }
 
 @Composable
+private fun ExpiredPaymentCallout(
+    onRebookClick: () -> Unit
+) {
+    Surface(
+        shape = MaterialTheme.shapes.medium,
+        color = WarningTint,
+        border = BorderStroke(1.dp, WarningDeep.copy(alpha = 0.15f)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(TraveloSpacing.sm)) {
+            Row(verticalAlignment = Alignment.Top) {
+                Icon(
+                    imageVector = Icons.Default.Schedule,
+                    contentDescription = null,
+                    tint = WarningDeep,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(Modifier.width(TraveloSpacing.xs))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = PaymentCountdown.EXPIRED_LABEL,
+                        style = MaterialTheme.typography.titleSmall,
+                        color = PlumInk
+                    )
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        text = "The payment window closed and the seats were released. " +
+                            "Book again to reserve them.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = PlumMuted
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(TraveloSpacing.sm))
+
+            TraveloButton(
+                text = "Pesan ulang",
+                onClick = onRebookClick,
+                variant = TraveloButtonVariant.Secondary,
+                size = TraveloButtonSize.Medium,
+                leadingIcon = Icons.Default.Refresh
+            )
+        }
+    }
+}
+
+@Composable
 private fun PaymentStatusChip(outcome: PaymentOutcome) {
     val label: String
     val tint: Color
@@ -695,7 +963,7 @@ private fun PaymentStatusChip(outcome: PaymentOutcome) {
         }
 
         PaymentOutcome.EXPIRED -> {
-            label = "Expired"
+            label = PaymentCountdown.EXPIRED_LABEL
             tint = WarningDeep
             background = WarningTint
             icon = Icons.Default.Schedule

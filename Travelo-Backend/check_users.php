@@ -1,4 +1,5 @@
 <?php
+
 require 'vendor/autoload.php';
 
 $pdo = new PDO('mysql:host=127.0.0.1;port=3307;dbname=travelo', 'root', '');
@@ -8,4 +9,4 @@ echo "\n=== USERS IN DATABASE ===\n";
 foreach ($users as $user) {
     echo "ID: {$user['id']}, Email: {$user['email']}, Name: {$user['name']}\n";
 }
-echo "\nTotal: " . count($users) . " users\n";
+echo "\nTotal: ".count($users)." users\n";

@@ -16,6 +16,7 @@ class PaymentController extends Controller
         $payments = Payment::with(['booking.user', 'booking.tourPackage'])
             ->latest()
             ->paginate(10);
+
         return view('admin.payments.index', compact('payments'));
     }
 
@@ -25,6 +26,7 @@ class PaymentController extends Controller
     public function show(Payment $payment): View
     {
         $payment->load(['booking.user', 'booking.tourPackage']);
+
         return view('admin.payments.show', compact('payment'));
     }
 }

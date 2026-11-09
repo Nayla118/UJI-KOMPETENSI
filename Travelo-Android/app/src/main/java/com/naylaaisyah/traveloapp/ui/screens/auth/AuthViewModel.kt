@@ -4,6 +4,8 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.naylaaisyah.traveloapp.data.repository.TraveloRepository
+import com.naylaaisyah.traveloapp.notifications.PushRegistrar
+import com.naylaaisyah.traveloapp.notifications.PushTokenStore
 import com.naylaaisyah.traveloapp.util.Resource
 import com.naylaaisyah.traveloapp.util.SessionManager
 import com.google.android.gms.auth.api.signin.GoogleSignInClient
@@ -41,7 +43,9 @@ class AuthViewModel @Inject constructor(
     private val firebaseAuth: FirebaseAuth,
     private val googleSignInClient: GoogleSignInClient,
     private val sessionManager: SessionManager,
-    private val repository: TraveloRepository
+    private val repository: TraveloRepository,
+    private val pushRegistrar: PushRegistrar,
+    private val pushTokenStore: PushTokenStore
 ) : ViewModel() {
     
     private val _authState = MutableStateFlow(AuthState())
@@ -61,6 +65,9 @@ class AuthViewModel @Inject constructor(
                     isAuthenticated = true,
                     user = currentUser
                 )
+                viewModelScope.launch {
+                    pushRegistrar.syncIfSignedIn()
+                }
             }
             currentUser != null -> {
                 // Signed in with Firebase but the OTP was never finished (or the
@@ -305,6 +312,9 @@ class AuthViewModel @Inject constructor(
                     isAuthenticated = true,
                     user = firebaseUser
                 )
+
+                // Push is an enhancement; failure here never blocks sign-in.
+                pushRegistrar.syncIfSignedIn()
             }
             is Resource.Error -> {
                 Log.e("AuthViewModel", "[$source] Backend login failed: ${resource.message}")
@@ -406,6 +416,7 @@ class AuthViewModel @Inject constructor(
                             isAuthenticated = true,
                             user = user
                         )
+                        pushRegistrar.syncIfSignedIn()
                     }
                     is Resource.Error -> {
                         _authState.value = _authState.value.copy(
@@ -482,12 +493,21 @@ class AuthViewModel @Inject constructor(
     }
 
     fun logout() {
+        // Capture the credentials before clearSession() removes them: the
+        // backend needs both to stop pushing to this device.
+        val authToken = sessionManager.authToken
+        val fcmToken = pushTokenStore.token
+
         // Clear the local session and Firebase user before the UI navigates to
         // Login. LoginScreen creates a new AuthViewModel whose init() would
         // otherwise see the old Firebase user + still-present token and send
         // the user straight back to Home.
         sessionManager.clearSession()
         _authState.value = AuthState()
+
+        viewModelScope.launch {
+            pushRegistrar.unregisterCurrent(authToken, fcmToken)
+        }
 
         try {
             firebaseAuth.signOut()

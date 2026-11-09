@@ -59,6 +59,7 @@ class OtpFlowTest extends TestCase
         $code = null;
         Mail::assertSent(LoginOtpMail::class, function (LoginOtpMail $mail) use (&$code) {
             $code = $mail->code;
+
             return true;
         });
 
@@ -99,6 +100,7 @@ class OtpFlowTest extends TestCase
         $code = null;
         Mail::assertSent(LoginOtpMail::class, function (LoginOtpMail $mail) use (&$code) {
             $code = $mail->code;
+
             return true;
         });
 
@@ -142,6 +144,7 @@ class OtpFlowTest extends TestCase
         $code = null;
         Mail::assertSent(LoginOtpMail::class, function (LoginOtpMail $mail) use (&$code) {
             $code = $mail->code;
+
             return true;
         });
 

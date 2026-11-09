@@ -2,6 +2,8 @@ package com.naylaaisyah.traveloapp.data.api
 
 import com.naylaaisyah.traveloapp.data.models.*
 import okhttp3.MultipartBody
+import okhttp3.ResponseBody
+import retrofit2.Response
 import retrofit2.http.*
 
 interface ApiService {
@@ -57,21 +59,24 @@ interface ApiService {
         @Header("Authorization") token: String
     ): ApiResponse<Any>
 
-    // Destination Endpoints
+    // Destination Endpoints. The Authorization header is optional: the
+    // backend returns `is_wishlisted` only when a valid Sanctum token is sent.
     @GET("api/destinations")
     suspend fun getDestinations(
-        @Query("page") page: Int = 1,
-        @Query("per_page") perPage: Int = 10
+        @QueryMap query: Map<String, String>,
+        @Header("Authorization") token: String? = null
     ): ApiResponse<List<Destination>>
 
     @GET("api/destinations/popular")
     suspend fun getPopularDestinations(
-        @Query("limit") limit: Int = 6
+        @Query("limit") limit: Int = 6,
+        @Header("Authorization") token: String? = null
     ): ApiResponse<List<Destination>>
 
     @GET("api/destinations/{id}")
     suspend fun getDestinationDetail(
-        @Path("id") id: Int
+        @Path("id") id: Int,
+        @Header("Authorization") token: String? = null
     ): ApiResponse<Destination>
 
     // Verified-visit reviews. Public lists contain only published reviews;
@@ -112,19 +117,51 @@ interface ApiService {
     // Tour Package Endpoints
     @GET("api/tour-packages")
     suspend fun getTourPackages(
-        @Query("page") page: Int = 1,
-        @Query("per_page") perPage: Int = 10
+        @QueryMap query: Map<String, String>,
+        @Header("Authorization") token: String? = null
     ): ApiResponse<List<TourPackage>>
 
     @GET("api/tour-packages/{id}")
     suspend fun getTourPackageDetail(
-        @Path("id") id: Int
+        @Path("id") id: Int,
+        @Header("Authorization") token: String? = null
     ): ApiResponse<TourPackageDetail>
+
+    // Per-date capacity, closed dates, and remaining seats. Public: the app
+    // uses it to stop a traveller before they reach the booking endpoint.
+    @GET("api/tour-packages/{id}/availability")
+    suspend fun getAvailability(
+        @Path("id") id: Int,
+        @Query("month") month: String,
+        @Query("people") people: Int = 1
+    ): ApiResponse<AvailabilityMonth>
 
     @GET("api/tour-packages/destination/{destinationId}")
     suspend fun getDestinationTourPackages(
-        @Path("destinationId") destinationId: Int
+        @Path("destinationId") destinationId: Int,
+        @Header("Authorization") token: String? = null
     ): ApiResponse<List<TourPackage>>
+
+    // Wishlist / favourites (authenticated).
+    @GET("api/wishlist")
+    suspend fun getWishlist(
+        @Header("Authorization") token: String,
+        @Query("type") type: String? = null,
+        @Query("page") page: Int = 1,
+        @Query("per_page") perPage: Int = 20
+    ): ApiResponse<List<WishlistEntry>>
+
+    @POST("api/wishlist/toggle")
+    suspend fun toggleWishlist(
+        @Header("Authorization") token: String,
+        @Body request: WishlistToggleRequest
+    ): ApiResponse<WishlistToggleData>
+
+    @DELETE("api/wishlist/{id}")
+    suspend fun deleteWishlist(
+        @Header("Authorization") token: String,
+        @Path("id") id: Int
+    ): ApiResponse<Any>
 
     // Booking Endpoints
     @GET("api/my-bookings")
@@ -132,6 +169,14 @@ interface ApiService {
         @Header("Authorization") token: String,
         @Query("page") page: Int = 1
     ): ApiResponse<List<Booking>>
+
+    // Server-validated promo preview. The booking endpoint revalidates the
+    // code, so this response is display-only.
+    @POST("api/promos/validate")
+    suspend fun validatePromo(
+        @Header("Authorization") token: String,
+        @Body request: PromoValidateRequest
+    ): ApiResponse<PromoPreview>
 
     @POST("api/bookings")
     suspend fun createBooking(
@@ -152,6 +197,52 @@ interface ApiService {
         @Header("Authorization") token: String,
         @Path("id") id: Int
     ): ApiResponse<ETicket>
+
+    // Print-ready invoice HTML for a paid booking. Streamed because the body
+    // is written to app cache before the user opens or shares it. Accept: JSON
+    // keeps error responses (409/404) readable instead of an HTML error page.
+    @Headers("Accept: application/json")
+    @Streaming
+    @GET("api/bookings/{id}/invoice/download")
+    suspend fun downloadInvoice(
+        @Header("Authorization") token: String,
+        @Path("id") id: Int
+    ): Response<ResponseBody>
+
+    // Cancellation. Submitting is advisory: the booking only changes after an
+    // admin approves the request.
+    @GET("api/bookings/{id}/change-requests")
+    suspend fun getChangeRequests(
+        @Header("Authorization") token: String,
+        @Path("id") bookingId: Int
+    ): ApiResponse<List<BookingChangeRequest>>
+
+    @POST("api/bookings/{id}/change-requests")
+    suspend fun requestBookingChange(
+        @Header("Authorization") token: String,
+        @Path("id") bookingId: Int,
+        @Body request: BookingChangeRequestInput
+    ): ApiResponse<BookingChangeRequest>
+
+    // Refund preview: estimated refund before submitting a cancellation request.
+    @GET("api/bookings/{id}/refund-preview")
+    suspend fun getRefundPreview(
+        @Header("Authorization") token: String,
+        @Path("id") bookingId: Int
+    ): ApiResponse<RefundPreview>
+
+    // Firebase Cloud Messaging device registration.
+    @POST("api/device-tokens")
+    suspend fun registerDeviceToken(
+        @Header("Authorization") token: String,
+        @Body request: DeviceTokenRequest
+    ): ApiResponse<Any>
+
+    @DELETE("api/device-tokens")
+    suspend fun unregisterDeviceToken(
+        @Header("Authorization") token: String,
+        @Body request: DeviceTokenRequest
+    ): ApiResponse<Any>
 
     // Visitor identity. Documents are multipart uploads into private
     // storage; the server returns document_status, never the raw file path.

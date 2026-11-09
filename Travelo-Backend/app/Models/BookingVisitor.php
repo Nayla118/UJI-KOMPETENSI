@@ -19,8 +19,11 @@ class BookingVisitor extends Model
     use HasFactory;
 
     public const TYPE_KTP = 'ktp';
+
     public const TYPE_KIA = 'kia';
+
     public const TYPE_STUDENT_CARD = 'student_card';
+
     public const TYPE_OTHER = 'other';
 
     public const TYPES = [
@@ -31,9 +34,13 @@ class BookingVisitor extends Model
     ];
 
     public const DOC_MISSING = 'missing';
+
     public const DOC_PENDING = 'pending';
+
     public const DOC_VERIFIED = 'verified';
+
     public const DOC_REJECTED = 'rejected';
+
     public const DOC_PURGED = 'purged';
 
     /** Only an explicit staff review may reach DOC_VERIFIED. */
@@ -126,7 +133,7 @@ class BookingVisitor extends Model
 
     public function getHasDocumentAttribute(): bool
     {
-        return !empty($this->attributes['document_path'])
+        return ! empty($this->attributes['document_path'])
             && in_array($this->document_status, self::DOCUMENT_PRESENT_STATUSES, true);
     }
 
@@ -141,7 +148,7 @@ class BookingVisitor extends Model
             return false;
         }
 
-        if (!in_array($this->identity_type, self::TYPES, true)) {
+        if (! in_array($this->identity_type, self::TYPES, true)) {
             return false;
         }
 
@@ -149,7 +156,7 @@ class BookingVisitor extends Model
             return false;
         }
 
-        if ($this->identity_type === self::TYPE_KIA && !$this->date_of_birth) {
+        if ($this->identity_type === self::TYPE_KIA && ! $this->date_of_birth) {
             return false;
         }
 

@@ -63,9 +63,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
+import com.naylaaisyah.traveloapp.data.availability.AvailabilityRules
 import com.naylaaisyah.traveloapp.data.models.VisitorDocumentInput
 import com.naylaaisyah.traveloapp.data.models.VisitorInput
 import com.naylaaisyah.traveloapp.ui.components.TraveloButton
+import com.naylaaisyah.traveloapp.ui.components.TraveloButtonSize
+import com.naylaaisyah.traveloapp.ui.components.TraveloButtonVariant
 import com.naylaaisyah.traveloapp.ui.components.TraveloCard
 import com.naylaaisyah.traveloapp.ui.components.TraveloIconButton
 import com.naylaaisyah.traveloapp.ui.components.TraveloPriceText
@@ -79,6 +82,7 @@ import com.naylaaisyah.traveloapp.ui.theme.PlumBorder
 import com.naylaaisyah.traveloapp.ui.theme.PlumInk
 import com.naylaaisyah.traveloapp.ui.theme.PlumMuted
 import com.naylaaisyah.traveloapp.ui.theme.Rosewood
+import com.naylaaisyah.traveloapp.ui.theme.SageDeep
 import com.naylaaisyah.traveloapp.ui.theme.SurfaceWhite
 import com.naylaaisyah.traveloapp.ui.theme.TraveloSpacing
 import com.naylaaisyah.traveloapp.ui.theme.VanillaCream
@@ -120,6 +124,7 @@ fun BookingScreen(
     var selectedDate by remember { mutableStateOf("") }
     var peopleCount by remember { mutableIntStateOf(1) }
     var specialRequests by remember { mutableStateOf("") }
+    var promoInput by remember { mutableStateOf("") }
     var privacyConsent by remember { mutableStateOf(false) }
     var localError by remember { mutableStateOf<String?>(null) }
     var preparingDocuments by remember { mutableStateOf(false) }
@@ -130,6 +135,25 @@ fun BookingScreen(
 
     val maxPeople = if (tourPackageMaxPeople > 0) tourPackageMaxPeople else 10
     val totalPrice = tourPackagePrice.toLong() * peopleCount
+
+    // Availability is loaded per month. Unknown days never block the form;
+    // the booking endpoint still enforces capacity atomically.
+    val selectedDay = selectedDate.takeIf { it.isNotBlank() }
+        ?.let { uiState.availabilityDays[it] }
+    val selectedDateBookable = AvailabilityRules.isBookable(selectedDay, peopleCount)
+    val availabilityMessage = AvailabilityRules.message(selectedDay, peopleCount)
+
+    LaunchedEffect(tourPackageId) {
+        val month = SimpleDateFormat("yyyy-MM", Locale.US).format(Calendar.getInstance().time)
+        viewModel.loadAvailability(tourPackageId, month, peopleCount)
+    }
+
+    LaunchedEffect(selectedDate, uiState.availabilityMonth) {
+        val month = AvailabilityRules.monthOf(selectedDate) ?: return@LaunchedEffect
+        if (month != uiState.availabilityMonth) {
+            viewModel.loadAvailability(tourPackageId, month, peopleCount)
+        }
+    }
 
     val datePickerDialog = remember {
         val calendar = Calendar.getInstance()
@@ -193,6 +217,15 @@ fun BookingScreen(
         }
     }
 
+    // A preview is only valid for the date/party size it was calculated for.
+    // When either changes, clear it and make the user reapply.
+    LaunchedEffect(peopleCount, selectedDate) {
+        if (uiState.promoCode != null) {
+            viewModel.clearPromo()
+            promoInput = ""
+        }
+    }
+
     LaunchedEffect(uiState.bookerName) {
         if (visitorForms.isNotEmpty() && visitorForms[0].name.isBlank()) {
             visitorForms[0].name = uiState.bookerName
@@ -233,6 +266,11 @@ fun BookingScreen(
     fun validationMessage(): String? {
         if (selectedDate.isBlank()) {
             return "Choose your travel date first."
+        }
+
+        if (!selectedDateBookable) {
+            return availabilityMessage
+                ?: "This date is no longer available. Please choose another date."
         }
 
         visitorForms.forEachIndexed { index, form ->
@@ -350,6 +388,33 @@ fun BookingScreen(
                         tint = PlumMuted,
                         modifier = Modifier.size(20.dp)
                     )
+                }
+            }
+
+            if (selectedDate.isNotBlank()) {
+                Spacer(Modifier.height(TraveloSpacing.xxs))
+                when {
+                    uiState.availabilityLoading && selectedDay == null -> {
+                        Text(
+                            text = "Checking availability…",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = PlumMuted
+                        )
+                    }
+                    selectedDay == null && uiState.availabilityError != null -> {
+                        Text(
+                            text = "Couldn't check availability. We'll verify the date when you book.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = PlumMuted
+                        )
+                    }
+                    availabilityMessage != null -> {
+                        Text(
+                            text = availabilityMessage,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (selectedDateBookable) SageDeep else DangerDeep
+                        )
+                    }
                 }
             }
 
@@ -495,6 +560,14 @@ fun BookingScreen(
                     )
                     Spacer(Modifier.height(TraveloSpacing.sm))
 
+                    val promoApplied = uiState.promoCode != null
+                    val subtotal = if (promoApplied) {
+                        uiState.promoSubtotal
+                    } else {
+                        totalPrice.toDouble()
+                    }
+                    val total = if (promoApplied) uiState.promoTotal else subtotal
+
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
@@ -505,9 +578,93 @@ fun BookingScreen(
                             color = PlumMuted
                         )
                         Text(
-                            text = formatRupiah(totalPrice.toDouble()),
+                            text = formatRupiah(subtotal),
                             style = MaterialTheme.typography.bodyMedium,
                             color = PlumInk
+                        )
+                    }
+
+                    if (promoApplied) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Promo ${uiState.promoCode}",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = SageDeep
+                            )
+                            Text(
+                                text = "− ${formatRupiah(uiState.promoDiscount)}",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = SageDeep
+                            )
+                        }
+                    }
+
+                    Spacer(Modifier.height(TraveloSpacing.sm))
+
+                    if (promoApplied) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Promo code",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = PlumMuted
+                            )
+                            TraveloButton(
+                                text = "Remove",
+                                onClick = {
+                                    promoInput = ""
+                                    viewModel.clearPromo()
+                                },
+                                modifier = Modifier.width(112.dp),
+                                variant = TraveloButtonVariant.Ghost,
+                                size = TraveloButtonSize.Medium
+                            )
+                        }
+                    } else {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            TraveloTextField(
+                                value = promoInput,
+                                onValueChange = { promoInput = it.uppercase() },
+                                label = "Promo code",
+                                placeholder = "e.g. SUMMER10",
+                                modifier = Modifier.weight(1f),
+                                singleLine = true
+                            )
+                            Spacer(Modifier.width(TraveloSpacing.xs))
+                            TraveloButton(
+                                text = "Apply",
+                                onClick = {
+                                    viewModel.applyPromo(
+                                        tourPackageId = tourPackageId,
+                                        bookingDate = selectedDate,
+                                        peopleCount = peopleCount,
+                                        code = promoInput
+                                    )
+                                },
+                                modifier = Modifier.width(112.dp),
+                                size = TraveloButtonSize.Medium,
+                                enabled = promoInput.isNotBlank(),
+                                loading = uiState.promoLoading
+                            )
+                        }
+                    }
+
+                    uiState.promoError?.let { message ->
+                        Spacer(Modifier.height(TraveloSpacing.xs))
+                        Text(
+                            text = message,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = DangerDeep
                         )
                     }
 
@@ -530,7 +687,7 @@ fun BookingScreen(
                             color = PlumInk
                         )
                         TraveloPriceText(
-                            amount = totalPrice.toDouble(),
+                            amount = total,
                             emphasized = true
                         )
                     }
@@ -632,13 +789,16 @@ fun BookingScreen(
                                 },
                                 documents = documents,
                                 reuseSavedIdentityDocument = visitorForms.firstOrNull()
-                                    ?.usingSavedDocument == true
+                                    ?.usingSavedDocument == true,
+                                promoCode = uiState.promoCode
                             )
                         }
                     }
                 },
                 loading = uiState.isLoading || preparingDocuments,
-                enabled = selectedDate.isNotEmpty() && peopleCount in 1..maxPeople
+                enabled = selectedDate.isNotEmpty() &&
+                    peopleCount in 1..maxPeople &&
+                    selectedDateBookable
             )
 
             Spacer(Modifier.height(TraveloSpacing.sm))

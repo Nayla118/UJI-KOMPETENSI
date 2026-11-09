@@ -41,6 +41,13 @@ class PaymentController extends Controller
                 'booking_status' => $booking->booking_status,
                 'payment_status' => $booking->payment_status,
                 'total_price' => $booking->total_price,
+                // Server-derived countdown so a device clock cannot keep a
+                // released booking "payable". payment_expires_at is the
+                // absolute deadline; server_time is the reference clock.
+                'payment_expires_at' => $booking->payment_expires_at?->toIso8601ZuluString(),
+                'payment_expires_in_seconds' => $booking->payment_expires_in_seconds,
+                'payment_expired' => $booking->payment_expired,
+                'server_time' => now()->toIso8601ZuluString(),
                 'bookingStatus' => $booking->booking_status,
                 'status' => $booking->payment_status,
             ];
@@ -92,7 +99,7 @@ class PaymentController extends Controller
         try {
             $payment = $booking->payment;
 
-            if (!$payment || !$payment->midtrans_order_id) {
+            if (! $payment || ! $payment->midtrans_order_id) {
                 return response()->json([
                     'success' => false,
                     'message' => 'No payment record found. Please create payment first.',
@@ -108,7 +115,7 @@ class PaymentController extends Controller
             // If payment is already marked as paid, return immediately
             if ($payment->payment_status === 'paid' && $payment->paid_at) {
                 Log::info('Payment already confirmed', ['booking_id' => $booking->id]);
-                
+
                 return response()->json([
                     'success' => true,
                     'message' => 'Payment is already confirmed',
@@ -130,7 +137,7 @@ class PaymentController extends Controller
 
                 $transactionData = $this->midtransService->verifyBookingAcrossOrders($booking);
 
-                if ($transactionData && !empty($transactionData['raw'])) {
+                if ($transactionData && ! empty($transactionData['raw'])) {
                     Log::info('Got Midtrans response', [
                         'transaction_status' => $transactionData['status'] ?? 'unknown',
                         'fraud_status' => $transactionData['fraud_status'] ?? 'unknown',
@@ -178,7 +185,7 @@ class PaymentController extends Controller
                     'order_id' => $payment->midtrans_order_id,
                     'error' => $e->getMessage(),
                 ]);
-                
+
                 return response()->json([
                     'success' => false,
                     'message' => 'Could not verify this payment with Midtrans. Please try again.',
@@ -225,7 +232,7 @@ class PaymentController extends Controller
         try {
             $payment = $booking->payment;
 
-            if (!$payment) {
+            if (! $payment) {
                 return response()->json([
                     'success' => false,
                     'message' => 'No payment record exists',
@@ -239,8 +246,8 @@ class PaymentController extends Controller
             for ($i = 0; $i < $attempts; $i++) {
                 try {
                     $transactionData = $this->midtransService->verifyBookingAcrossOrders($booking);
-                    
-                    if ($transactionData && !empty($transactionData['raw'])) {
+
+                    if ($transactionData && ! empty($transactionData['raw'])) {
                         DB::beginTransaction();
 
                         try {
@@ -316,7 +323,7 @@ class PaymentController extends Controller
 
         $payment = $booking->payment;
 
-        if (!$payment || !$payment->midtrans_order_id) {
+        if (! $payment || ! $payment->midtrans_order_id) {
             return response()->json([
                 'success' => false,
                 'message' => 'No payment record found',
@@ -383,7 +390,7 @@ class PaymentController extends Controller
         if (($result['payment_status'] ?? null) !== 'paid') {
             return response()->json([
                 'success' => false,
-                'message' => 'Payment not confirmed by Midtrans. Current status: ' . ($result['payment_status'] ?? 'unknown'),
+                'message' => 'Payment not confirmed by Midtrans. Current status: '.($result['payment_status'] ?? 'unknown'),
                 'data' => [
                     'booking_status' => $result['booking_status'],
                     'payment_status' => $result['payment_status'],

@@ -61,7 +61,7 @@ class SavedIdentity extends Model
     /** A readable document is on file and has not been rejected. */
     public function getHasDocumentAttribute(): bool
     {
-        return !empty($this->attributes['document_path'])
+        return ! empty($this->attributes['document_path'])
             && in_array($this->document_status, BookingVisitor::DOCUMENT_PRESENT_STATUSES, true);
     }
 

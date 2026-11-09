@@ -3,15 +3,15 @@
 
 /**
  * Midtrans Webhook Test with Real Booking
- * 
+ *
  * Usage: php test-webhook-real.php
- * 
+ *
  * This creates a test booking and simulates a real Midtrans webhook
  */
 
-require __DIR__ . '/vendor/autoload.php';
+require __DIR__.'/vendor/autoload.php';
 
-$app = require_once __DIR__ . '/bootstrap/app.php';
+$app = require_once __DIR__.'/bootstrap/app.php';
 $app->make('Illuminate\Contracts\Console\Kernel')->bootstrap();
 
 use App\Models\Booking;
@@ -26,7 +26,7 @@ echo "===========================================\n\n";
 
 // Find or create test user
 $user = User::first();
-if (!$user) {
+if (! $user) {
     echo "❌ No users found. Please create a user first.\n";
     exit(1);
 }
@@ -35,7 +35,7 @@ echo "Using user: {$user->name} (ID: {$user->id})\n";
 
 // Find or create test tour package
 $tourPackage = TourPackage::first();
-if (!$tourPackage) {
+if (! $tourPackage) {
     echo "❌ No tour packages found. Please create a tour package first.\n";
     exit(1);
 }
@@ -58,7 +58,7 @@ echo "✅ Booking created: ID {$booking->id}\n\n";
 
 // Get base URL
 $baseUrl = config('app.url');
-$webhookUrl = $baseUrl . '/api/midtrans/callback';
+$webhookUrl = $baseUrl.'/api/midtrans/callback';
 
 echo "Testing webhook with real booking:\n";
 echo "→ {$webhookUrl}\n\n";
@@ -68,10 +68,10 @@ echo "Simulating successful payment...\n";
 echo "-------------------------------------------\n";
 
 $payload = [
-    'order_id' => 'BOOKING-' . $booking->id,
+    'order_id' => 'BOOKING-'.$booking->id,
     'status_code' => '200',
     'transaction_status' => 'capture',
-    'transaction_id' => 'test-success-' . time(),
+    'transaction_id' => 'test-success-'.time(),
     'payment_type' => 'credit_card',
     'gross_amount' => $booking->total_price,
     'fraud_status' => 'accept',
@@ -82,36 +82,36 @@ try {
         'Content-Type' => 'application/json',
         'Accept' => 'application/json',
     ])->post($webhookUrl, $payload);
-    
+
     $statusCode = $response->status();
     $body = $response->json();
-    
+
     echo "Status Code: {$statusCode}\n";
-    echo "Response: " . json_encode($body, JSON_PRETTY_PRINT) . "\n\n";
-    
+    echo 'Response: '.json_encode($body, JSON_PRETTY_PRINT)."\n\n";
+
     if ($statusCode === 200) {
         echo "✅ Webhook received successfully!\n\n";
-        
+
         // Refresh booking from database
         $booking->refresh();
         $payment = $booking->payment;
-        
+
         echo "Booking Status After Webhook:\n";
         echo "-------------------------------------------\n";
         echo "Booking ID: {$booking->id}\n";
         echo "Payment Status: {$booking->payment_status}\n";
         echo "Booking Status: {$booking->booking_status}\n";
-        
+
         if ($payment) {
             echo "\nPayment Record:\n";
             echo "-------------------------------------------\n";
             echo "Payment ID: {$payment->id}\n";
             echo "Payment Status: {$payment->payment_status}\n";
             echo "Payment Method: {$payment->payment_method}\n";
-            echo "Amount: Rp " . number_format($payment->amount, 0, ',', '.') . "\n";
+            echo 'Amount: Rp '.number_format($payment->amount, 0, ',', '.')."\n";
             echo "Midtrans Transaction ID: {$payment->midtrans_transaction_id}\n";
         }
-        
+
         // Verify success
         echo "\n===========================================\n";
         if ($booking->payment_status === 'paid' && $booking->booking_status === 'confirmed') {
@@ -125,8 +125,8 @@ try {
     } else {
         echo "❌ FAILED (Status: {$statusCode})\n";
     }
-} catch (\Exception $e) {
-    echo "❌ ERROR: " . $e->getMessage() . "\n";
+} catch (Exception $e) {
+    echo '❌ ERROR: '.$e->getMessage()."\n";
 }
 
 echo "\n";

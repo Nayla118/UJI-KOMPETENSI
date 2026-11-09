@@ -122,6 +122,7 @@ class DemoReviewSeeder extends Seeder
 
             if ($packages->isEmpty()) {
                 $this->command?->warn("Skipping {$destination->name}: no tour package.");
+
                 continue;
             }
 

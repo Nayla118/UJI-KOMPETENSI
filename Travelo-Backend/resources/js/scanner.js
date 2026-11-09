@@ -1,13 +1,14 @@
-const root = document.getElementById('ticket-scanner');
+const scannerRoot = document.getElementById('ticket-scanner') ?? document.getElementById('owner-ticket-scanner');
 
-if (root) {
-    initTicketScanner(root);
+if (scannerRoot) {
+    initTicketScanner(scannerRoot);
 }
 
 function initTicketScanner(scannerRoot) {
     const redeemUrl = scannerRoot.dataset.redeemUrl;
     const csrfToken = scannerRoot.dataset.csrfToken;
     const secureScannerUrl = scannerRoot.dataset.secureScannerUrl || '';
+    const gateStaff = scannerRoot.dataset.gateStaff === '1';
 
     const reader = document.getElementById('scanner-reader');
     const placeholder = document.getElementById('scanner-placeholder');
@@ -393,18 +394,29 @@ function initTicketScanner(scannerRoot) {
             ? `${visitors} ${visitors === 1 ? 'traveler' : 'travelers'}`
             : '';
 
-        showResult(
-            'success',
-            'Check-in complete',
-            'Ticket redeemed',
-            'The ticket is now marked as used. The traveller can enter once.',
-            [
+        // Gate staff see operational fields only. Money, reference, email,
+        // phone, identity numbers and documents are never rendered.
+        const details = gateStaff
+            ? [
+                ['Guest', data.holder_name],
+                ['Package', data.package],
+                ['Visit date', data.visit_date],
+                ['Travelers', travelers],
+            ]
+            : [
                 ['Reference', data.reference],
                 ['Guest', data.holder_name],
                 ['Destination', destination],
                 ['Visit date', data.visit_date],
                 ['Travelers', travelers],
-            ]
+            ];
+
+        showResult(
+            'success',
+            'Check-in complete',
+            'Ticket redeemed',
+            'The ticket is now marked as used. The traveller can enter once.',
+            details
         );
     }
 
@@ -465,10 +477,12 @@ function initTicketScanner(scannerRoot) {
                 'Not today',
                 'Ticket is not valid yet',
                 serverMessage || 'This ticket is for a future visit date and cannot be redeemed today.',
-                [
-                    ['Visit date', visitDate],
-                    ['Reference', reference],
-                ]
+                gateStaff
+                    ? [['Visit date', visitDate]]
+                    : [
+                        ['Visit date', visitDate],
+                        ['Reference', reference],
+                    ]
             );
             setCameraStatus('Ticket is for a future visit date. It was not redeemed.');
             return;

@@ -18,7 +18,7 @@
 
     @stack('styles')
 </head>
-<body class="bg-cream font-sans text-ink min-h-screen">
+<body class="bg-cream font-sans text-ink min-h-screen" id="app-body">
 <div class="min-h-screen">
     <!-- Mobile backdrop -->
     <div id="sidebar-backdrop" class="fixed inset-0 bg-ink/30 z-40 hidden lg:hidden"></div>
@@ -29,9 +29,14 @@
             <a href="{{ route('admin.dashboard') }}" class="flex items-center gap-3 group">
                 <img src="/images/logos/travelo-logo-primary.png" alt="Travelo" class="h-12 w-12" width="48" height="48">
             </a>
-            <button type="button" id="sidebar-close" class="lg:hidden inline-flex items-center justify-center size-10 rounded-xl text-muted hover:bg-blush" aria-label="Close navigation">
-                <span class="material-symbols-outlined">close</span>
-            </button>
+            <div class="flex items-center gap-2">
+                <button type="button" id="sidebar-close" class="lg:hidden inline-flex items-center justify-center size-10 rounded-xl text-muted hover:bg-blush" aria-label="Close navigation">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+                <button type="button" id="dark-mode-toggle" class="inline-flex items-center justify-center size-10 rounded-xl text-muted hover:bg-blush" aria-label="Toggle dark mode">
+                    <span class="material-symbols-outlined">dark_mode</span>
+                </button>
+            </div>
         </div>
 
         <nav class="flex-1 px-4 py-4 space-y-1 overflow-y-auto" aria-label="Admin navigation">
@@ -39,6 +44,10 @@
                 <a href="{{ route('admin.dashboard') }}" class="flex items-center gap-3 px-4 py-3 {{ request()->routeIs('admin.dashboard') ? 'bg-primary/10 text-primary font-semibold' : 'text-slate-600 hover:bg-blush' }} rounded-xl transition-colors duration-200">
                     <span class="material-symbols-outlined">dashboard</span>
                     <span class="font-medium text-sm">Dashboard</span>
+                </a>
+                <a href="{{ route('admin.reports.index') }}" class="flex items-center gap-3 px-4 py-3 {{ request()->routeIs('admin.reports.*') ? 'bg-primary/10 text-primary font-semibold' : 'text-slate-600 hover:bg-blush' }} rounded-xl transition-colors duration-200">
+                    <span class="material-symbols-outlined">analytics</span>
+                    <span class="font-medium text-sm">Reports</span>
                 </a>
             @endif
 
@@ -63,6 +72,14 @@
                 <a href="{{ route('admin.bookings.index') }}" class="flex items-center gap-3 px-4 py-3 {{ request()->routeIs('admin.bookings.*') ? 'bg-primary/10 text-primary font-semibold' : 'text-slate-600 hover:bg-blush' }} rounded-xl transition-colors duration-200">
                     <span class="material-symbols-outlined">calendar_month</span>
                     <span class="font-medium text-sm">Bookings</span>
+                </a>
+                <a href="{{ route('admin.promos.index') }}" class="flex items-center gap-3 px-4 py-3 {{ request()->routeIs('admin.promos.*') ? 'bg-primary/10 text-primary font-semibold' : 'text-slate-600 hover:bg-blush' }} rounded-xl transition-colors duration-200">
+                    <span class="material-symbols-outlined">sell</span>
+                    <span class="font-medium text-sm">Promo Codes</span>
+                </a>
+                <a href="{{ route('admin.change-requests.index') }}" class="flex items-center gap-3 px-4 py-3 {{ request()->routeIs('admin.change-requests.*') ? 'bg-primary/10 text-primary font-semibold' : 'text-slate-600 hover:bg-blush' }} rounded-xl transition-colors duration-200">
+                    <span class="material-symbols-outlined">published_with_changes</span>
+                    <span class="font-medium text-sm">Change Requests</span>
                 </a>
                 <a href="{{ route('admin.payments.index') }}" class="flex items-center gap-3 px-4 py-3 {{ request()->routeIs('admin.payments.*') ? 'bg-primary/10 text-primary font-semibold' : 'text-slate-600 hover:bg-blush' }} rounded-xl transition-colors duration-200">
                     <span class="material-symbols-outlined">payments</span>
@@ -126,6 +143,8 @@
         const backdrop = document.getElementById('sidebar-backdrop');
         const openButton = document.getElementById('sidebar-open');
         const closeButton = document.getElementById('sidebar-close');
+        const body = document.getElementById('app-body');
+        const darkToggle = document.getElementById('dark-mode-toggle');
 
         function setOpen(open) {
             if (!sidebar || !backdrop || !openButton) return;
@@ -140,6 +159,28 @@
         backdrop?.addEventListener('click', function () { setOpen(false); });
         document.addEventListener('keydown', function (event) {
             if (event.key === 'Escape') setOpen(false);
+        });
+
+        // Dark mode toggle
+        function applyDarkMode(enabled) {
+            if (enabled) {
+                body.classList.add('dark');
+                localStorage.setItem('travelo-dark-mode', '1');
+            } else {
+                body.classList.remove('dark');
+                localStorage.setItem('travelo-dark-mode', '0');
+            }
+        }
+
+        const saved = localStorage.getItem('travelo-dark-mode');
+        if (saved !== null) {
+            applyDarkMode(saved === '1');
+        } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            applyDarkMode(true);
+        }
+
+        darkToggle?.addEventListener('click', function () {
+            applyDarkMode(!body.classList.contains('dark'));
         });
     })();
 </script>

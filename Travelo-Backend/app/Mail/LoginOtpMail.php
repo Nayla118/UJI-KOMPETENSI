@@ -20,8 +20,7 @@ class LoginOtpMail extends Mailable
         public string $code,
         public int $ttlMinutes,
         public string $appUrl = ''
-    ) {
-    }
+    ) {}
 
     public function envelope(): Envelope
     {

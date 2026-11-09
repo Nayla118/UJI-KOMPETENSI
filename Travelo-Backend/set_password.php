@@ -20,10 +20,11 @@ if (PHP_SAPI !== 'cli') {
 require 'vendor/autoload.php';
 
 use App\Models\User;
+use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Support\Facades\Hash;
 
 $app = require_once 'bootstrap/app.php';
-$app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+$app->make(Kernel::class)->bootstrap();
 
 $email = trim((string) getenv('TRAVELO_TARGET_EMAIL'));
 $password = (string) getenv('TRAVELO_NEW_PASSWORD');
@@ -33,7 +34,7 @@ if ($email === '' || $password === '') {
     exit(1);
 }
 
-if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+if (! filter_var($email, FILTER_VALIDATE_EMAIL)) {
     fwrite(STDERR, "TRAVELO_TARGET_EMAIL must be a valid email address.\n");
     exit(1);
 }
@@ -45,7 +46,7 @@ if (strlen($password) < 12) {
 
 $user = User::where('email', $email)->first();
 
-if (!$user) {
+if (! $user) {
     fwrite(STDERR, "No local user found for {$email}.\n");
     exit(1);
 }

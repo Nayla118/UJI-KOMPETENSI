@@ -1,15 +1,21 @@
 <?php
 
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\AvailabilityController;
+use App\Http\Controllers\Api\BookingChangeController;
 use App\Http\Controllers\Api\BookingController;
 use App\Http\Controllers\Api\DestinationController;
+use App\Http\Controllers\Api\DeviceTokenController;
 use App\Http\Controllers\Api\IdentityProfileController;
+use App\Http\Controllers\Api\InvoiceController;
 use App\Http\Controllers\Api\MidtransController;
 use App\Http\Controllers\Api\OtpController;
 use App\Http\Controllers\Api\PaymentController;
+use App\Http\Controllers\Api\PromoController;
 use App\Http\Controllers\Api\ReviewController;
 use App\Http\Controllers\Api\TourPackageController;
 use App\Http\Controllers\Api\VisitorController;
+use App\Http\Controllers\Api\WishlistController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -18,10 +24,14 @@ use Illuminate\Support\Facades\Route;
 |--------------------------------------------------------------------------
 */
 
-// Public routes
-Route::get('/destinations', [DestinationController::class, 'index']);
-Route::get('/destinations/popular', [DestinationController::class, 'popular']);
-Route::get('/destinations/{id}', [DestinationController::class, 'show']);
+// Public routes. `optional.sanctum` attaches the authenticated user when a
+// valid token is sent so catalog responses can include `is_wishlisted`,
+// without ever requiring a token for anonymous visitors.
+Route::middleware('optional.sanctum')->group(function () {
+    Route::get('/destinations', [DestinationController::class, 'index']);
+    Route::get('/destinations/popular', [DestinationController::class, 'popular']);
+    Route::get('/destinations/{id}', [DestinationController::class, 'show']);
+});
 
 // Verified-visit reviews: public aggregates/list only include published rows.
 Route::get('/destinations/{id}/reviews', [ReviewController::class, 'index'])
@@ -29,9 +39,13 @@ Route::get('/destinations/{id}/reviews', [ReviewController::class, 'index'])
 Route::get('/destinations/{id}/rating-summary', [ReviewController::class, 'summary'])
     ->middleware('throttle:60,1');
 
-Route::get('/tour-packages', [TourPackageController::class, 'index']);
-Route::get('/tour-packages/{id}', [TourPackageController::class, 'show']);
-Route::get('/tour-packages/destination/{destinationId}', [TourPackageController::class, 'byDestination']);
+Route::middleware('optional.sanctum')->group(function () {
+    Route::get('/tour-packages', [TourPackageController::class, 'index']);
+    Route::get('/tour-packages/{id}/availability', [AvailabilityController::class, 'show'])
+        ->middleware('throttle:60,1');
+    Route::get('/tour-packages/{id}', [TourPackageController::class, 'show']);
+    Route::get('/tour-packages/destination/{destinationId}', [TourPackageController::class, 'byDestination']);
+});
 
 // Authentication
 Route::post('/auth/login', [AuthController::class, 'login']);
@@ -52,8 +66,9 @@ Route::get('/midtrans/health', [MidtransController::class, 'health']);
 // Gate verification for backend-issued e-ticket tokens (no PII beyond trip details)
 Route::post('/tickets/verify', [BookingController::class, 'verifyTicket'])->middleware('throttle:60,1');
 
-// Protected routes
-Route::middleware('auth:sanctum')->group(function () {
+// Protected routes. Deactivated accounts are rejected even when they still
+// hold a Sanctum token; deactivation also revokes the tokens themselves.
+Route::middleware(['auth:sanctum', 'active'])->group(function () {
     Route::post('/auth/logout', [AuthController::class, 'logout']);
     Route::get('/auth/me', [AuthController::class, 'me']);
     Route::put('/auth/profile', [AuthController::class, 'updateProfile']);
@@ -64,11 +79,47 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/auth/identity', [IdentityProfileController::class, 'destroy'])
         ->middleware('throttle:10,1');
 
+    // Promo preview. The booking endpoint revalidates the code, so this is
+    // only a convenience for showing the discount before submitting.
+    Route::post('/promos/validate', [PromoController::class, 'validatePromo'])
+        ->middleware('throttle:30,1');
+
     // Booking routes
     Route::get('/my-bookings', [BookingController::class, 'myBookings']);
     Route::post('/bookings', [BookingController::class, 'store']);
     Route::get('/bookings/{id}', [BookingController::class, 'show']);
     Route::get('/bookings/{id}/e-ticket', [BookingController::class, 'eTicket']);
+
+    // Invoice for paid bookings only. The JSON endpoint feeds the app's
+    // invoice preview; the download returns print-ready HTML. Downloading is
+    // stricter than reading because it renders a full document.
+    Route::get('/bookings/{id}/invoice', [InvoiceController::class, 'show'])
+        ->middleware('throttle:60,1');
+    Route::get('/bookings/{id}/invoice/download', [InvoiceController::class, 'download'])
+        ->middleware('throttle:10,1');
+
+    // Cancellation requests. A request is advisory until an admin approves it;
+    // the booking itself is only changed server-side.
+    Route::get('/bookings/{id}/change-requests', [BookingChangeController::class, 'index'])
+        ->middleware('throttle:60,1');
+    Route::post('/bookings/{id}/change-requests', [BookingChangeController::class, 'store'])
+        ->middleware('throttle:10,1');
+    Route::get('/bookings/{id}/refund-preview', [BookingController::class, 'refundPreview'])
+        ->middleware('throttle:60,1');
+
+    // Favourites. The toggle is intentionally lightly rate-limited.
+    Route::get('/wishlist', [WishlistController::class, 'index'])
+        ->middleware('throttle:60,1');
+    Route::post('/wishlist/toggle', [WishlistController::class, 'toggle'])
+        ->middleware('throttle:30,1');
+    Route::delete('/wishlist/{id}', [WishlistController::class, 'destroy'])
+        ->middleware('throttle:30,1');
+
+    // Firebase Cloud Messaging device registration.
+    Route::post('/device-tokens', [DeviceTokenController::class, 'store'])
+        ->middleware('throttle:20,1');
+    Route::delete('/device-tokens', [DeviceTokenController::class, 'destroy'])
+        ->middleware('throttle:20,1');
 
     // Reviews: destination eligibility is server-derived, and submissions are
     // tied to the booking (never to a client-supplied destination id).
@@ -93,16 +144,16 @@ Route::middleware('auth:sanctum')->group(function () {
         ->middleware('throttle:10,1');
     Route::get('/bookings/{id}/visitors/{visitorId}/identity-document', [VisitorController::class, 'downloadDocument'])
         ->middleware('throttle:30,1');
-    
+
     // Payment routes - CRITICAL: Call these after payment to update status
     Route::get('/bookings/{bookingId}/payment-status', [PaymentController::class, 'getStatus']);
     Route::post('/bookings/{bookingId}/payment/verify-and-sync', [PaymentController::class, 'verifyAndSync']);
     Route::post('/bookings/{bookingId}/payment/retry-sync', [PaymentController::class, 'retrySync']);
     Route::post('/bookings/{bookingId}/payment/mark-as-paid', [PaymentController::class, 'markAsPaid']);
-    
+
     // Legacy Midtrans endpoints (deprecated, use PaymentController instead)
     Route::post('/bookings/{bookingId}/sync-payment-status', [MidtransController::class, 'syncBookingStatus']);
     Route::get('/bookings/{bookingId}/legacy-payment-status', [MidtransController::class, 'getPaymentStatus']);
-    
+
     Route::post('/payments/create-snap-token', [BookingController::class, 'createSnapToken']);
 });

@@ -43,6 +43,15 @@ import com.naylaaisyah.traveloapp.ui.theme.PlumInk
 import com.naylaaisyah.traveloapp.ui.theme.PlumMuted
 import com.naylaaisyah.traveloapp.ui.theme.Rosewood
 import com.naylaaisyah.traveloapp.ui.theme.VanillaCream
+import com.naylaaisyah.traveloapp.util.Constants
+import com.naylaaisyah.traveloapp.util.buildImageUrl
+import android.util.Log
+
+/**
+ * Tag used for image-loader diagnostics. Logs never contain tokens or user
+ * data — only the public image URL that failed to load.
+ */
+private const val TAG = "TraveloImage"
 
 /**
  * Image loader with an honest local fallback. We never invent a destination
@@ -58,19 +67,23 @@ fun TraveloImage(
     contentScale: ContentScale = ContentScale.Crop
 ) {
     Box(modifier = modifier.clip(shape)) {
-        if (url.isNullOrBlank()) {
+        val loadableUrl = buildImageUrl(Constants.BASE_URL, url)
+        if (loadableUrl.isNullOrBlank()) {
             ImageFallback()
         } else {
             SubcomposeAsyncImage(
                 model = ImageRequest.Builder(LocalContext.current)
-                    .data(url)
+                    .data(loadableUrl)
                     .crossfade(180)
                     .build(),
                 contentDescription = contentDescription,
                 contentScale = contentScale,
                 modifier = Modifier.fillMaxSize(),
                 loading = { ImageLoading() },
-                error = { ImageFallback() }
+                error = {
+                    Log.e(TAG, "Image load gagal: $loadableUrl")
+                    ImageFallback()
+                }
             )
         }
     }
@@ -114,7 +127,9 @@ private fun ImageFallback() {
 fun TraveloDestinationCard(
     destination: Destination,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isWishlisted: Boolean = false,
+    onToggleWishlist: (() -> Unit)? = null
 ) {
     // Prefer the city when it adds information; fall back to the country to
     // avoid printing the same word twice on the card.
@@ -152,6 +167,15 @@ fun TraveloDestinationCard(
                 .align(Alignment.TopEnd)
                 .padding(10.dp)
         )
+        if (onToggleWishlist != null) {
+            WishlistHeartButton(
+                isWishlisted = isWishlisted,
+                onClick = onToggleWishlist,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(10.dp)
+            )
+        }
         Column(
             modifier = Modifier
                 .align(Alignment.BottomStart)
@@ -178,7 +202,9 @@ fun TraveloDestinationCard(
 fun TraveloTourPackageCard(
     tourPackage: TourPackage,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isWishlisted: Boolean = false,
+    onToggleWishlist: (() -> Unit)? = null
 ) {
     TraveloCard(
         modifier = modifier,
@@ -200,6 +226,15 @@ fun TraveloTourPackageCard(
                     .align(Alignment.TopEnd)
                     .padding(8.dp)
             )
+            if (onToggleWishlist != null) {
+                WishlistHeartButton(
+                    isWishlisted = isWishlisted,
+                    onClick = onToggleWishlist,
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(8.dp)
+                )
+            }
         }
         Column(modifier = Modifier.padding(12.dp)) {
             Text(
@@ -230,7 +265,9 @@ fun TraveloTourPackageCard(
 fun TraveloTourPackageRow(
     tourPackage: TourPackage,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isWishlisted: Boolean = false,
+    onToggleWishlist: (() -> Unit)? = null
 ) {
     TraveloCard(
         modifier = modifier,
@@ -286,6 +323,13 @@ fun TraveloTourPackageRow(
                         )
                     }
                 }
+            }
+            if (onToggleWishlist != null) {
+                WishlistHeartButton(
+                    isWishlisted = isWishlisted,
+                    onClick = onToggleWishlist,
+                    modifier = Modifier.padding(start = 4.dp)
+                )
             }
         }
     }

@@ -265,9 +265,34 @@ fun ETicketDialog(
                     label = stringResource(R.string.eticket_booking_id),
                     value = "#${booking.id}"
                 )
+                val discount = if (booking.discountAmount > 0) {
+                    booking.discountAmount
+                } else {
+                    ticket.discountAmount
+                }
+                val promoCode = booking.promoCode ?: ticket.promoCode
+                if (discount > 0 || !promoCode.isNullOrBlank()) {
+                    val subtotal = ticket.subtotalAmount
+                        ?: booking.subtotalAmount
+                        ?: (booking.totalPrice + discount)
+                    TicketRow(
+                        label = stringResource(R.string.eticket_subtotal),
+                        value = formatRupiah(subtotal)
+                    )
+                    promoCode?.takeIf { it.isNotBlank() }?.let { code ->
+                        TicketRow(
+                            label = stringResource(R.string.eticket_promo_code),
+                            value = code
+                        )
+                    }
+                    TicketRow(
+                        label = stringResource(R.string.eticket_discount),
+                        value = "− ${formatRupiah(discount)}"
+                    )
+                }
                 TicketRow(
                     label = stringResource(R.string.eticket_total_paid),
-                    value = formatRupiah(booking.totalPrice)
+                    value = formatRupiah(ticket.totalPrice ?: booking.totalPrice)
                 )
 
                 Spacer(Modifier.height(TraveloSpacing.md))

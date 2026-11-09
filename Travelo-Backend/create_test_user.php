@@ -26,12 +26,12 @@ $email = getenv('TRAVELO_TEST_EMAIL');
 $password = getenv('TRAVELO_TEST_PASSWORD');
 $displayName = getenv('TRAVELO_TEST_NAME') ?: 'Travelo Test User';
 
-if (!$email || !$password) {
+if (! $email || ! $password) {
     fwrite(STDERR, "Refusing to create a test account without TRAVELO_TEST_EMAIL and TRAVELO_TEST_PASSWORD.\n");
     exit(1);
 }
 
-if (!is_file($credentials)) {
+if (! is_file($credentials)) {
     fwrite(STDERR, "Firebase service-account file not found: {$credentials}\n");
     exit(1);
 }
@@ -43,7 +43,7 @@ try {
     echo "User already exists.\n";
     echo "UID: {$user->uid}\n";
     echo "Email: {$user->email}\n";
-} catch (\Throwable $e) {
+} catch (Throwable $e) {
     try {
         $created = $auth->createUser([
             'email' => $email,
@@ -56,7 +56,7 @@ try {
         echo "UID: {$created->uid}\n";
         echo "Email: {$created->email}\n";
         echo "Display name: {$created->displayName}\n";
-    } catch (\Throwable $createError) {
+    } catch (Throwable $createError) {
         fwrite(STDERR, "Could not create Firebase user: {$createError->getMessage()}\n");
         exit(1);
     }

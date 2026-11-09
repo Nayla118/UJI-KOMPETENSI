@@ -2,7 +2,10 @@
 
 namespace App\Http\Requests;
 
+use App\Models\Destination;
+use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class StoreDestinationRequest extends FormRequest
 {
@@ -17,7 +20,7 @@ class StoreDestinationRequest extends FormRequest
     /**
      * Get the validation rules that apply to the request.
      *
-     * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
+     * @return array<string, ValidationRule|array<mixed>|string>
      */
     public function rules(): array
     {
@@ -25,6 +28,7 @@ class StoreDestinationRequest extends FormRequest
             'name' => 'required|string|max:255',
             'city' => 'required|string|max:255',
             'country' => 'required|string|max:255',
+            'category' => ['nullable', 'string', Rule::in(Destination::CATEGORIES)],
             'description' => 'nullable|string',
             'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048',
             'is_popular' => 'nullable|boolean',
@@ -43,6 +47,7 @@ class StoreDestinationRequest extends FormRequest
             'city.max' => 'City name cannot exceed 255 characters.',
             'country.required' => 'Country is required.',
             'country.max' => 'Country name cannot exceed 255 characters.',
+            'category.in' => 'Category must be one of: '.implode(', ', Destination::CATEGORIES).'.',
             'image.image' => 'The file must be an image.',
             'image.mimes' => 'The image must be a file of type: jpeg, png, jpg, gif, webp.',
             'image.max' => 'The image size cannot exceed 2MB.',

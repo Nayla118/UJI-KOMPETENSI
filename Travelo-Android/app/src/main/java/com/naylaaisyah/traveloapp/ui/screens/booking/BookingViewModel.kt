@@ -3,9 +3,12 @@ package com.naylaaisyah.traveloapp.ui.screens.booking
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.naylaaisyah.traveloapp.data.models.ApiResponse
+import com.naylaaisyah.traveloapp.data.models.AvailabilityDay
 import com.naylaaisyah.traveloapp.data.models.Booking
 import com.naylaaisyah.traveloapp.data.models.BookingRequest
 import com.naylaaisyah.traveloapp.data.models.CreateBookingResponseData
+import com.naylaaisyah.traveloapp.data.models.PromoPreview
+import com.naylaaisyah.traveloapp.data.models.PromoValidateRequest
 import com.naylaaisyah.traveloapp.data.models.SavedIdentity
 import com.naylaaisyah.traveloapp.data.models.Visitor
 import com.naylaaisyah.traveloapp.data.models.VisitorDocumentInput
@@ -34,6 +37,19 @@ data class BookingUiState(
     val bookerName: String = "",
     val savedIdentity: SavedIdentity? = null,
     val savedIdentityLoaded: Boolean = false,
+    // Per-date capacity for the currently loaded month, keyed by YYYY-MM-DD.
+    val availabilityDays: Map<String, AvailabilityDay> = emptyMap(),
+    val availabilityMonth: String? = null,
+    val availabilityLoading: Boolean = false,
+    val availabilityError: String? = null,
+    // Promo preview returned by the server. These amounts are display-only;
+    // the booking endpoint revalidates and recomputes the final total.
+    val promoCode: String? = null,
+    val promoSubtotal: Double = 0.0,
+    val promoDiscount: Double = 0.0,
+    val promoTotal: Double = 0.0,
+    val promoLoading: Boolean = false,
+    val promoError: String? = null,
     val error: String? = null
 )
 
@@ -57,9 +73,56 @@ class BookingViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(BookingUiState())
     val uiState: StateFlow<BookingUiState> = _uiState.asStateFlow()
 
+    private var availabilityRequestMonth: String? = null
+
+    // Monotonic id so a slow promo preview can never overwrite a newer one
+    // (or a preview the user already cleared).
+    private var promoRequestSeq = 0
+
     init {
         _uiState.value = BookingUiState(bookerName = sessionManager.userName.orEmpty())
         loadSavedIdentity()
+    }
+
+    /**
+     * Loads the public month view so the screen can show remaining seats and
+     * block closed/full dates before the booking request is sent. A failure
+     * is non-fatal: the server still validates capacity on submit.
+     */
+    fun loadAvailability(tourPackageId: Int, month: String, people: Int) {
+        if (tourPackageId <= 0 || month.isBlank()) return
+
+        if (_uiState.value.availabilityLoading && availabilityRequestMonth == month) {
+            return
+        }
+
+        availabilityRequestMonth = month
+
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(
+                availabilityLoading = true,
+                availabilityError = null
+            )
+
+            when (val result = repository.getAvailability(tourPackageId, month, people)) {
+                is Resource.Success<*> -> {
+                    val data = result.data as? com.naylaaisyah.traveloapp.data.models.AvailabilityMonth
+                    _uiState.value = _uiState.value.copy(
+                        availabilityLoading = false,
+                        availabilityMonth = data?.month ?: month,
+                        availabilityDays = data?.byDate.orEmpty(),
+                        availabilityError = null
+                    )
+                }
+                is Resource.Error<*> -> {
+                    _uiState.value = _uiState.value.copy(
+                        availabilityLoading = false,
+                        availabilityError = result.message
+                    )
+                }
+                is Resource.Loading<*> -> Unit
+            }
+        }
     }
 
     /**
@@ -88,6 +151,106 @@ class BookingViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Ask the server to validate a code for the current package, date and
+     * party size. The app never calculates the discount itself.
+     */
+    fun applyPromo(
+        tourPackageId: Int,
+        bookingDate: String,
+        peopleCount: Int,
+        code: String
+    ) {
+        val requestSeq = ++promoRequestSeq
+        val token = sessionManager.authToken
+        if (token.isNullOrBlank()) {
+            _uiState.value = _uiState.value.copy(
+                promoError = "Please sign in again to use a promo code."
+            )
+            return
+        }
+
+        if (code.isBlank()) {
+            _uiState.value = _uiState.value.copy(promoError = "Enter a promo code.")
+            return
+        }
+
+        if (bookingDate.isBlank()) {
+            _uiState.value = _uiState.value.copy(
+                promoError = "Choose a travel date before applying a promo code."
+            )
+            return
+        }
+
+        if (tourPackageId <= 0 || peopleCount < 1) {
+            _uiState.value = _uiState.value.copy(
+                promoError = "Choose a valid date and number of travellers first."
+            )
+            return
+        }
+
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(
+                promoLoading = true,
+                promoError = null
+            )
+
+            val request = PromoValidateRequest(
+                code = code.trim(),
+                tourPackageId = tourPackageId,
+                people = peopleCount,
+                date = bookingDate
+            )
+
+            when (val result = repository.validatePromo(token, request)) {
+                is Resource.Success<*> -> {
+                    if (requestSeq != promoRequestSeq) return@launch
+
+                    val preview = result.data as? PromoPreview
+                    if (preview == null) {
+                        _uiState.value = _uiState.value.copy(
+                            promoLoading = false,
+                            promoError = "Couldn't apply this promo code. Please try again."
+                        )
+                        return@launch
+                    }
+
+                    _uiState.value = _uiState.value.copy(
+                        promoLoading = false,
+                        promoCode = preview.promoCode,
+                        promoSubtotal = preview.subtotal,
+                        promoDiscount = preview.discount,
+                        promoTotal = preview.total,
+                        promoError = null
+                    )
+                }
+                is Resource.Error<*> -> {
+                    if (requestSeq != promoRequestSeq) return@launch
+
+                    _uiState.value = _uiState.value.copy(
+                        promoLoading = false,
+                        promoError = result.message
+                    )
+                }
+                is Resource.Loading<*> -> Unit
+            }
+        }
+    }
+
+    /** Remove the applied preview so the booking is sent at full price. */
+    fun clearPromo() {
+        promoRequestSeq++
+
+        _uiState.value = _uiState.value.copy(
+            promoCode = null,
+            promoSubtotal = 0.0,
+            promoDiscount = 0.0,
+            promoTotal = 0.0,
+            promoLoading = false,
+            promoError = null
+        )
+    }
+
     fun createBooking(
         tourPackageId: Int,
         bookingDate: String,
@@ -95,7 +258,8 @@ class BookingViewModel @Inject constructor(
         specialRequests: String? = null,
         visitors: List<VisitorInput> = emptyList(),
         documents: List<VisitorDocumentInput?> = emptyList(),
-        reuseSavedIdentityDocument: Boolean = false
+        reuseSavedIdentityDocument: Boolean = false,
+        promoCode: String? = null
     ) {
         val userId = sessionManager.userId
         val token = sessionManager.authToken
@@ -142,6 +306,7 @@ class BookingViewModel @Inject constructor(
             tourPackageId = tourPackageId,
             peopleCount = peopleCount,
             bookingDate = bookingDate,
+            promoCode = promoCode?.trim()?.takeIf { it.isNotEmpty() },
             specialRequests = specialRequests?.trim()?.takeIf { it.isNotEmpty() },
             visitors = visitorRequests,
             privacyConsent = if (visitorRequests != null) true else null,

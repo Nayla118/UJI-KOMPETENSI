@@ -36,7 +36,7 @@ class FirebaseTokenVerifier implements FirebaseIdentityVerifier
     }
 
     /**
-     * @param array<string, mixed> $claims
+     * @param  array<string, mixed>  $claims
      * @return array{
      *     uid: string,
      *     email: ?string,
@@ -50,7 +50,7 @@ class FirebaseTokenVerifier implements FirebaseIdentityVerifier
     {
         $uid = $claims['sub'] ?? null;
 
-        if (!is_string($uid) || $uid === '') {
+        if (! is_string($uid) || $uid === '') {
             throw InvalidFirebaseTokenException::because('missing subject (sub) claim');
         }
 

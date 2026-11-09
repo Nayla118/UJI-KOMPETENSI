@@ -48,7 +48,7 @@ class OtpController extends Controller
         $idToken = $request->input('id_token');
         $code = (string) $request->input('code', '');
 
-        if (!is_string($idToken) || $idToken === '') {
+        if (! is_string($idToken) || $idToken === '') {
             return response()->json([
                 'success' => false,
                 'message' => __('travelo.otp.api.missing_parameters'),
@@ -56,7 +56,7 @@ class OtpController extends Controller
             ], 422);
         }
 
-        if (!preg_match('/^\d{6}$/', $code)) {
+        if (! preg_match('/^\d{6}$/', $code)) {
             return response()->json([
                 'success' => false,
                 'message' => __('travelo.otp.api.code_format'),
@@ -70,13 +70,13 @@ class OtpController extends Controller
         }
 
         $email = $identity['email'];
-        if (!$email) {
+        if (! $email) {
             return response()->json(['success' => false, 'message' => __('travelo.otp.api.no_email')], 400);
         }
 
         $otp = LoginOtp::activeForEmail($email)->first();
 
-        if (!$otp) {
+        if (! $otp) {
             return response()->json([
                 'success' => false,
                 'message' => __('travelo.otp.api.code_invalid'),
@@ -93,7 +93,7 @@ class OtpController extends Controller
             ], 429);
         }
 
-        if (!Hash::check((string) $request->input('code'), $otp->code_hash)) {
+        if (! Hash::check((string) $request->input('code'), $otp->code_hash)) {
             $otp->increment('attempts');
             $attemptsLeft = max(0, LoginOtp::MAX_ATTEMPTS - $otp->attempts);
 
@@ -142,7 +142,7 @@ class OtpController extends Controller
     {
         $idToken = $request->input('id_token');
 
-        if (!is_string($idToken) || $idToken === '') {
+        if (! is_string($idToken) || $idToken === '') {
             return response()->json([
                 'success' => false,
                 'message' => __('travelo.otp.api.missing_parameters'),
@@ -156,7 +156,7 @@ class OtpController extends Controller
         }
 
         $email = $identity['email'];
-        if (!$email) {
+        if (! $email) {
             return response()->json(['success' => false, 'message' => __('travelo.otp.api.no_email')], 400);
         }
 
@@ -191,7 +191,7 @@ class OtpController extends Controller
 
         try {
             Mail::to($email)->send(new LoginOtpMail($code, LoginOtp::TTL_MINUTES, (string) config('app.url')));
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             // Do not leave a code alive that nobody received.
             $otp->delete();
             Log::error('Failed to send OTP email', [
@@ -254,6 +254,6 @@ class OtpController extends Controller
             return $email;
         }
 
-        return substr($email, 0, 2) . str_repeat('*', max(1, $at - 2)) . substr($email, $at);
+        return substr($email, 0, 2).str_repeat('*', max(1, $at - 2)).substr($email, $at);
     }
 }

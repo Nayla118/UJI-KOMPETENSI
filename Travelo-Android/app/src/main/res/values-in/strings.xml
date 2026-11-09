@@ -20,6 +20,9 @@
         <item quantity="other">%1$d hari</item>
     </plurals>
     <string name="eticket_booking_id">ID booking</string>
+    <string name="eticket_subtotal">Subtotal</string>
+    <string name="eticket_promo_code">Kode promo</string>
+    <string name="eticket_discount">Diskon</string>
     <string name="eticket_total_paid">Total dibayar</string>
     <string name="eticket_issued_note">E-tiket ini diterbitkan oleh server Travelo setelah pembayaran kamu dikonfirmasi. Kode QR ditandatangani dan dapat diperiksa oleh tim gerbang kami.</string>
     <string name="eticket_done">Selesai</string>
@@ -27,6 +30,9 @@
     <string name="eticket_view">Lihat e-tiket</string>
     <string name="eticket_tour_package">Paket tur</string>
     <string name="eticket_load_failed">E-tiket tidak dapat dimuat. Silakan coba lagi.</string>
+
+    <!-- Invoice -->
+    <string name="invoice_download">Unduh Invoice</string>
 
     <!-- Ticket history -->
     <string name="ticket_history_title">Riwayat tiket</string>

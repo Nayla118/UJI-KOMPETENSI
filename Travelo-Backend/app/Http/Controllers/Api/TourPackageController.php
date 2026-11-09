@@ -3,41 +3,45 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\FilterTourPackageRequest;
 use App\Http\Resources\TourPackageResource;
 use App\Models\TourPackage;
+use App\Models\Wishlist;
+use App\Services\TourPackageFilter;
+use App\Services\WishlistService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Cache;
 
 class TourPackageController extends Controller
 {
+    public function __construct(
+        private readonly WishlistService $wishlists,
+        private readonly TourPackageFilter $filter,
+    ) {}
+
     /**
-     * Get all tour packages
+     * Get all tour packages.
+     *
+     * Supported optional query parameters: q, category, location, country,
+     * destination_id, min_price, max_price, min_rating, duration,
+     * available_date, sort, page and per_page (1..50).
      */
-    public function index(Request $request): JsonResponse
+    public function index(FilterTourPackageRequest $request): JsonResponse
     {
+        $this->shareWishlistIds();
+
         try {
-            $query = TourPackage::query()
+            $filters = $request->validated();
+
+            $query = $this->filter->apply(TourPackage::query(), $filters);
+
+            $tourPackages = $this->filter
+                ->sort($query, $filters['sort'] ?? 'newest')
                 ->with(['destination' => fn ($destination) => $destination
                     ->withAvg('publishedReviews as reviews_avg_rating', 'rating')
                     ->withCount('publishedReviews as reviews_count')])
-                ->withCount('bookings');
-
-            // Search functionality
-            if ($request->has('search') && $request->search) {
-                $search = $request->search;
-                $query->where(function ($q) use ($search) {
-                    $q->where('title', 'like', "%{$search}%")
-                        ->orWhere('description', 'like', "%{$search}%");
-                });
-            }
-
-            // Filter by destination
-            if ($request->has('destination_id') && $request->destination_id) {
-                $query->where('destination_id', $request->destination_id);
-            }
-
-            $tourPackages = $query->latest()->paginate($request->per_page ?? 15);
+                ->withCount('bookings')
+                ->paginate((int) ($filters['per_page'] ?? 15));
 
             return response()->json([
                 'success' => true,
@@ -52,7 +56,7 @@ class TourPackageController extends Controller
                 ],
             ]);
         } catch (\Exception $e) {
-            \Log::error('Tour packages index error: ' . $e->getMessage());
+            \Log::error('Tour packages index error: '.$e->getMessage());
 
             return response()->json([
                 'success' => false,
@@ -66,13 +70,16 @@ class TourPackageController extends Controller
     /**
      * Get single tour package
      */
-    public function show(int $id): JsonResponse
+    public function show(Request $request, int $id): JsonResponse
     {
+        $this->shareWishlistIds();
+
         try {
             $tourPackage = TourPackage::query()
                 ->with(['destination' => fn ($destination) => $destination
                     ->withAvg('publishedReviews as reviews_avg_rating', 'rating')
                     ->withCount('publishedReviews as reviews_count')])
+                ->with(['itineraryDays', 'images'])
                 ->withCount('bookings')
                 ->findOrFail($id);
 
@@ -81,7 +88,7 @@ class TourPackageController extends Controller
                 'data' => (new TourPackageResource($tourPackage))->resolve(),
             ]);
         } catch (\Exception $e) {
-            \Log::error('Tour package show error: ' . $e->getMessage());
+            \Log::error('Tour package show error: '.$e->getMessage());
 
             return response()->json([
                 'success' => false,
@@ -96,6 +103,8 @@ class TourPackageController extends Controller
      */
     public function byDestination(int $destinationId, Request $request): JsonResponse
     {
+        $this->shareWishlistIds();
+
         try {
             $tourPackages = TourPackage::query()
                 ->with(['destination' => fn ($destination) => $destination
@@ -104,7 +113,7 @@ class TourPackageController extends Controller
                 ->withCount('bookings')
                 ->where('destination_id', $destinationId)
                 ->latest()
-                ->paginate($request->per_page ?? 15);
+                ->paginate(min(50, max(1, (int) ($request->per_page ?? 15))));
 
             return response()->json([
                 'success' => true,
@@ -119,7 +128,7 @@ class TourPackageController extends Controller
                 ],
             ]);
         } catch (\Exception $e) {
-            \Log::error('Tour packages by destination error: ' . $e->getMessage());
+            \Log::error('Tour packages by destination error: '.$e->getMessage());
 
             return response()->json([
                 'success' => false,
@@ -128,5 +137,27 @@ class TourPackageController extends Controller
                 'data' => [],
             ], 500);
         }
+    }
+
+    /**
+     * Load the current user's wishlist ids once per request (see
+     * DestinationController::shareWishlistIds). The container request is used
+     * because a controller FormRequest is only a copy of it, while
+     * JsonResource::resolve() reads the original instance.
+     */
+    private function shareWishlistIds(): void
+    {
+        $request = request();
+
+        $user = $request->user();
+
+        $request->attributes->set(
+            'wishlisted_destination_ids',
+            $this->wishlists->wishlistedIds($user, Wishlist::TYPE_DESTINATION)
+        );
+        $request->attributes->set(
+            'wishlisted_tour_package_ids',
+            $this->wishlists->wishlistedIds($user, Wishlist::TYPE_TOUR_PACKAGE)
+        );
     }
 }

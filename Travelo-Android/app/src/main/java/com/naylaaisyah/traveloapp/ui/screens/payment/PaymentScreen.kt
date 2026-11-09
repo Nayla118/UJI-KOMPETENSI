@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.ReceiptLong
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
@@ -43,12 +44,17 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.naylaaisyah.traveloapp.data.models.PaymentOutcome
+import com.naylaaisyah.traveloapp.data.models.paymentOutcome
+import com.naylaaisyah.traveloapp.data.payments.PaymentCountdown
+import com.naylaaisyah.traveloapp.ui.components.PaymentDeadlineNotice
 import com.naylaaisyah.traveloapp.ui.components.TraveloButton
 import com.naylaaisyah.traveloapp.ui.components.TraveloCard
 import com.naylaaisyah.traveloapp.ui.components.TraveloErrorState
 import com.naylaaisyah.traveloapp.ui.components.TraveloLoadingState
 import com.naylaaisyah.traveloapp.ui.components.TraveloPriceText
 import com.naylaaisyah.traveloapp.ui.components.TraveloTopBar
+import com.naylaaisyah.traveloapp.ui.components.rememberPaymentRemainingSeconds
 import com.naylaaisyah.traveloapp.ui.theme.BlushMist
 import com.naylaaisyah.traveloapp.ui.theme.CardShape
 import com.naylaaisyah.traveloapp.ui.theme.PlumMuted
@@ -74,6 +80,7 @@ fun PaymentScreen(
     bookingId: Int,
     onBackClick: () -> Unit,
     onFinished: (Int) -> Unit,
+    onRebook: (Int) -> Unit = {},
     viewModel: PaymentViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -173,6 +180,30 @@ fun PaymentScreen(
                             total = booking.totalPrice
                         )
 
+                        val outcome = booking.paymentOutcome()
+                        val isPaid = outcome == PaymentOutcome.SUCCESS
+                        val remainingSeconds = rememberPaymentRemainingSeconds(
+                            serverRemainingSeconds = booking.paymentExpiresInSeconds,
+                            serverExpired = booking.paymentExpired
+                        )
+                        val expired = !isPaid && (
+                            uiState.expiredFromServer ||
+                                PaymentCountdown.isExpired(
+                                    booking.paymentExpired,
+                                    remainingSeconds
+                                )
+                            )
+
+                        if (!isPaid &&
+                            (booking.paymentExpiresAt != null || booking.paymentExpired != null)
+                        ) {
+                            Spacer(Modifier.height(TraveloSpacing.sm))
+                            PaymentDeadlineNotice(
+                                remainingSeconds = remainingSeconds,
+                                expired = expired
+                            )
+                        }
+
                         Spacer(Modifier.height(TraveloSpacing.md))
 
                         PaymentMethodCard()
@@ -183,12 +214,23 @@ fun PaymentScreen(
 
                         Spacer(Modifier.height(TraveloSpacing.lg))
 
-                        TraveloButton(
-                            text = "Pay ${formatRupiah(booking.totalPrice)}",
-                            onClick = { viewModel.startPayment() },
-                            loading = uiState.isCreatingToken,
-                            enabled = !uiState.isReconciling
-                        )
+                        if (expired) {
+                            // The backend deadline passed: never send the user
+                            // to Snap again. The seats were released, so the safe
+                            // action is a fresh booking.
+                            TraveloButton(
+                                text = "Pesan ulang",
+                                onClick = { onRebook(booking.tourPackageId) },
+                                leadingIcon = Icons.Default.Refresh
+                            )
+                        } else if (!isPaid) {
+                            TraveloButton(
+                                text = "Pay ${formatRupiah(booking.totalPrice)}",
+                                onClick = { viewModel.startPayment() },
+                                loading = uiState.isCreatingToken,
+                                enabled = !uiState.isReconciling
+                            )
+                        }
 
                         Spacer(Modifier.height(TraveloSpacing.sm))
 

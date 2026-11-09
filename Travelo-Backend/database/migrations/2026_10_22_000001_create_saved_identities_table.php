@@ -19,7 +19,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        if (!Schema::hasTable('saved_identities')) {
+        if (! Schema::hasTable('saved_identities')) {
             Schema::create('saved_identities', function (Blueprint $table) {
                 $table->id();
                 $table->foreignId('user_id')->unique()->constrained()->cascadeOnDelete();

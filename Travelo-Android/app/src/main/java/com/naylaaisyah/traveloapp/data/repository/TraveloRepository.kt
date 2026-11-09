@@ -1,7 +1,9 @@
 package com.naylaaisyah.traveloapp.data.repository
 
+import android.util.Log
 import com.naylaaisyah.traveloapp.data.api.ApiService
 import com.naylaaisyah.traveloapp.data.models.*
+import com.naylaaisyah.traveloapp.data.promo.PromoErrorMessages
 import com.naylaaisyah.traveloapp.util.Resource
 import com.naylaaisyah.traveloapp.util.SessionManager
 import com.google.gson.JsonSyntaxException
@@ -10,10 +12,27 @@ import kotlinx.coroutines.flow.flow
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.ResponseBody
 import org.json.JSONObject
 import retrofit2.HttpException
+import retrofit2.Response
 import javax.inject.Inject
 import javax.inject.Singleton
+
+/**
+ * A downloaded invoice document and the filename suggested by the server.
+ * Kept in memory only until the UI writes it to app cache and opens/shares it.
+ */
+data class InvoiceFile(
+    val bytes: ByteArray,
+    val fileName: String
+)
+
+/**
+ * Tag used for TraveloRepository diagnostics. Logs never contain tokens,
+ * emails, or payment payloads.
+ */
+private const val TAG = "TraveloRepository"
 
 @Singleton
 class TraveloRepository @Inject constructor(
@@ -132,9 +151,15 @@ class TraveloRepository @Inject constructor(
         }
     }
 
+    /**
+     * Public catalog calls carry the Sanctum token when one exists so the
+     * backend can optionally enrich them with `is_wishlisted`.
+     */
+    private fun optionalAuthHeader(): String? =
+        sessionManager.authToken?.takeIf { it.isNotBlank() }?.let { "Bearer $it" }
+
     /** Reads the Laravel `{"message": "..."}` payload from a non-2xx response. */
-    private fun serverMessage(e: HttpException): String? {
-        val body = try {
+    private fun serverMessage(e: HttpException): String? {        val body = try {
             e.response()?.errorBody()?.string()
         } catch (_: Exception) {
             null
@@ -176,12 +201,28 @@ class TraveloRepository @Inject constructor(
         }
     }
 
-    // Destinations
-    suspend fun getDestinations(page: Int = 1): Resource<List<Destination>> {
+    // Destinations. Filters, sort and paging are resolved by the backend.
+    suspend fun getDestinations(
+        query: CatalogQuery = CatalogQuery()
+    ): Resource<CatalogPage<Destination>> {
         return try {
-            val response = apiService.getDestinations(page)
-            if (response.success && response.data != null) {
-                Resource.Success(response.data)
+            val response = apiService.getDestinations(
+                query = query.toQueryMap(),
+                token = optionalAuthHeader()
+            )
+            val data = response.data
+            if (response.success && data != null) {
+                Resource.Success(
+                    CatalogPage(
+                        items = data,
+                        meta = response.meta ?: CatalogMeta(
+                            currentPage = query.page,
+                            lastPage = 1,
+                            perPage = query.perPage,
+                            total = data.size
+                        )
+                    )
+                )
             } else {
                 Resource.Error(Exception(response.message))
             }
@@ -192,13 +233,21 @@ class TraveloRepository @Inject constructor(
 
     suspend fun getDestinationDetail(id: Int): Resource<Destination> {
         return try {
-            val response = apiService.getDestinationDetail(id)
+            Log.d(TAG, "GET destination detail id=$id")
+            val response = apiService.getDestinationDetail(id, token = optionalAuthHeader())
             if (response.success && response.data != null) {
+                Log.d(TAG, "destination detail id=$id loaded ok")
                 Resource.Success(response.data)
             } else {
+                Log.w(
+                    TAG,
+                    "destination detail id=$id failed: success=${response.success} message=${response.message ?: "-"}"
+                )
                 Resource.Error(Exception(response.message))
             }
         } catch (e: Exception) {
+            val code = if (e is retrofit2.HttpException) "http-${e.code()}" else "transport"
+            Log.e(TAG, "destination detail id=$id exception: $code", e)
             Resource.Error(e, readableError(e, "Failed to get destination detail"))
         }
     }
@@ -297,12 +346,28 @@ class TraveloRepository @Inject constructor(
         }
     }
 
-    // Tour Packages
-    suspend fun getTourPackages(page: Int = 1): Resource<List<TourPackage>> {
+    // Tour Packages. Filters, sort and paging are resolved by the backend.
+    suspend fun getTourPackages(
+        query: CatalogQuery = CatalogQuery()
+    ): Resource<CatalogPage<TourPackage>> {
         return try {
-            val response = apiService.getTourPackages(page)
-            if (response.success && response.data != null) {
-                Resource.Success(response.data)
+            val response = apiService.getTourPackages(
+                query = query.toQueryMap(),
+                token = optionalAuthHeader()
+            )
+            val data = response.data
+            if (response.success && data != null) {
+                Resource.Success(
+                    CatalogPage(
+                        items = data,
+                        meta = response.meta ?: CatalogMeta(
+                            currentPage = query.page,
+                            lastPage = 1,
+                            perPage = query.perPage,
+                            total = data.size
+                        )
+                    )
+                )
             } else {
                 Resource.Error(Exception(response.message))
             }
@@ -313,7 +378,10 @@ class TraveloRepository @Inject constructor(
 
     suspend fun getTourPackagesByDestination(destinationId: Int): Resource<List<TourPackage>> {
         return try {
-            val response = apiService.getDestinationTourPackages(destinationId)
+            val response = apiService.getDestinationTourPackages(
+                destinationId,
+                token = optionalAuthHeader()
+            )
             if (response.success && response.data != null) {
                 Resource.Success(response.data)
             } else {
@@ -326,7 +394,7 @@ class TraveloRepository @Inject constructor(
 
     suspend fun getTourPackageDetail(id: Int): Resource<TourPackageDetail> {
         return try {
-            val response = apiService.getTourPackageDetail(id)
+            val response = apiService.getTourPackageDetail(id, token = optionalAuthHeader())
             if (response.success && response.data != null) {
                 Resource.Success(response.data)
             } else {
@@ -334,6 +402,33 @@ class TraveloRepository @Inject constructor(
             }
         } catch (e: Exception) {
             Resource.Error(e, readableError(e, "Failed to get tour package detail"))
+        }
+    }
+
+    /**
+     * Per-date capacity for a tour package. Public, so a traveller can see
+     * closed/full dates before submitting a booking. The server re-checks
+     * capacity inside the booking transaction regardless of this response.
+     */
+    suspend fun getAvailability(
+        tourPackageId: Int,
+        month: String,
+        people: Int = 1
+    ): Resource<AvailabilityMonth> {
+        return try {
+            val response = apiService.getAvailability(
+                id = tourPackageId,
+                month = month,
+                people = people.coerceAtLeast(1)
+            )
+            if (response.success && response.data != null) {
+                Resource.Success(response.data)
+            } else {
+                val message = response.message.ifBlank { "Couldn't load availability." }
+                Resource.Error(Exception(message), message)
+            }
+        } catch (e: Exception) {
+            Resource.Error(e, readableError(e, "Couldn't load availability."))
         }
     }
 
@@ -348,6 +443,48 @@ class TraveloRepository @Inject constructor(
             }
         } catch (e: Exception) {
             Resource.Error(e, readableError(e, "Failed to get bookings"))
+        }
+    }
+
+    /**
+     * Preview a promo code. The server computes the price; the app only shows
+     * the returned subtotal/discount/total and sends the code back on booking.
+     */
+    suspend fun validatePromo(
+        token: String,
+        request: PromoValidateRequest
+    ): Resource<PromoPreview> {
+        return try {
+            val response = apiService.validatePromo("Bearer $token", request)
+            val data = response.data
+            if (response.success && data != null) {
+                Resource.Success(data)
+            } else {
+                val message = response.message.ifBlank { PromoErrorMessages.FALLBACK }
+                Resource.Error(Exception(message), message)
+            }
+        } catch (e: HttpException) {
+            if (e.code() == 401) {
+                sessionManager.expireSession()
+            }
+
+            val body = try {
+                e.response()?.errorBody()?.string()
+            } catch (_: Exception) {
+                null
+            }
+
+            val message = when (e.code()) {
+                401 -> "Your session has expired. Please sign in again."
+                else -> PromoErrorMessages.messageFromBody(
+                    body,
+                    "Couldn't apply this promo code."
+                )
+            }
+
+            Resource.Error(e, message)
+        } catch (e: Exception) {
+            Resource.Error(e, readableError(e, "Couldn't apply this promo code."))
         }
     }
 
@@ -516,6 +653,183 @@ class TraveloRepository @Inject constructor(
             }
         } catch (e: Exception) {
             Resource.Error(e, readableError(e, "Couldn't load your e-ticket."))
+        }
+    }
+
+    /**
+     * Download the print-ready invoice for a paid booking. The backend returns
+     * 409 until the payment is confirmed, so that message is surfaced as-is
+     * instead of a generic failure.
+     */
+    suspend fun downloadInvoice(token: String, bookingId: Int): Resource<InvoiceFile> {
+        return try {
+            val response = apiService.downloadInvoice("Bearer $token", bookingId)
+
+            if (!response.isSuccessful) {
+                val message = errorBodyMessage(response)
+                val friendly = when (response.code()) {
+                    409 -> message
+                        ?: "An invoice is available only after the payment is confirmed."
+                    401, 403, 404 -> "This invoice isn't available on your account."
+                    429 -> "Too many download attempts. Please wait a minute and try again."
+                    else -> message ?: "Couldn't download your invoice."
+                }
+                Resource.Error(Exception(friendly), friendly)
+            } else {
+                val body = response.body()
+                if (body == null) {
+                    Resource.Error(
+                        Exception("Invoice file was empty."),
+                        "Couldn't download your invoice."
+                    )
+                } else {
+                    val bytes = body.use { it.bytes() }
+                    Resource.Success(
+                        InvoiceFile(
+                            bytes = bytes,
+                            fileName = invoiceFileName(response, bookingId)
+                        )
+                    )
+                }
+            }
+        } catch (e: Exception) {
+            Resource.Error(e, readableError(e, "Couldn't download your invoice."))
+        }
+    }
+
+    /** Reads Laravel's `{"message": "..."}` from a streamed error response. */
+    private fun errorBodyMessage(response: Response<ResponseBody>): String? {
+        val body = try {
+            response.errorBody()?.string()
+        } catch (_: Exception) {
+            null
+        }
+
+        if (body.isNullOrBlank()) return null
+
+        return try {
+            JSONObject(body).optString("message").takeIf { it.isNotBlank() }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /**
+     * Extracts `filename="..."` from Content-Disposition. Only a safe basename
+     * is kept so the value can never escape the app's invoice cache folder.
+     */
+    private fun invoiceFileName(response: Response<ResponseBody>, bookingId: Int): String {
+        val header = response.headers()["Content-Disposition"].orEmpty()
+        val raw = Regex("filename=\"?([^\";]+)\"?")
+            .find(header)
+            ?.groupValues
+            ?.getOrNull(1)
+            ?.trim()
+
+        val safe = raw
+            ?.substringAfterLast('/')
+            ?.substringAfterLast('\\')
+            ?.filter { it.isLetterOrDigit() || it == '.' || it == '-' || it == '_' }
+
+        return safe?.takeIf { it.isNotBlank() && it.contains('.') }
+            ?: "invoice-$bookingId.html"
+    }
+
+    /**
+     * Cancellation requests for one of the caller's bookings. Requests are
+     * advisory until an admin approves them.
+     */
+    suspend fun getChangeRequests(
+        token: String,
+        bookingId: Int
+    ): Resource<List<BookingChangeRequest>> {
+        return try {
+            val response = apiService.getChangeRequests("Bearer $token", bookingId)
+            if (response.success && response.data != null) {
+                Resource.Success(response.data)
+            } else {
+                val message = response.message.ifBlank { "Couldn't load change requests." }
+                Resource.Error(Exception(message), message)
+            }
+        } catch (e: Exception) {
+            Resource.Error(e, readableError(e, "Couldn't load change requests."))
+        }
+    }
+
+    suspend fun requestBookingCancellation(
+        token: String,
+        bookingId: Int,
+        reason: String? = null
+    ): Resource<BookingChangeRequest> {
+        return try {
+            val response = apiService.requestBookingChange(
+                "Bearer $token",
+                bookingId,
+                BookingChangeRequestInput(
+                    type = BookingChangeRequest.TYPE_CANCELLATION,
+                    reason = reason?.trim()?.takeIf { it.isNotEmpty() }
+                )
+            )
+            val data = response.data
+            if (response.success && data != null) {
+                Resource.Success(data)
+            } else {
+                val message = response.message.ifBlank {
+                    "Couldn't submit your request. Please try again."
+                }
+                Resource.Error(Exception(message), message)
+            }
+        } catch (e: Exception) {
+            Resource.Error(e, readableError(e, "Couldn't submit your request."))
+        }
+    }
+
+    /** Estimated refund before submitting a cancellation request. */
+    suspend fun getRefundPreview(token: String, bookingId: Int): Resource<RefundPreview> {
+        return try {
+            val response = apiService.getRefundPreview("Bearer $token", bookingId)
+            if (response.success && response.data != null) {
+                Resource.Success(response.data)
+            } else {
+                val message = response.message.ifBlank { "Couldn't load refund estimate." }
+                Resource.Error(Exception(message), message)
+            }
+        } catch (e: Exception) {
+            Resource.Error(e, readableError(e, "Couldn't load refund estimate."))
+        }
+    }
+
+    /** Register/refresh this device's FCM token for the signed-in user. */
+    suspend fun registerDeviceToken(token: String, fcmToken: String): Resource<Unit> {
+        return try {
+            val response = apiService.registerDeviceToken(
+                "Bearer $token",
+                DeviceTokenRequest(token = fcmToken)
+            )
+            if (response.success) {
+                Resource.Success(Unit)
+            } else {
+                Resource.Error(Exception(response.message))
+            }
+        } catch (e: Exception) {
+            Resource.Error(e, readableError(e, "Couldn't enable notifications."))
+        }
+    }
+
+    /** Remove this device's token so logout stops future push delivery. */
+    suspend fun unregisterDeviceToken(token: String, fcmToken: String): Resource<Unit> {
+        return try {
+            val response = apiService.unregisterDeviceToken(
+                "Bearer $token",
+                DeviceTokenRequest(token = fcmToken)
+            )
+            if (response.success) {
+                Resource.Success(Unit)
+            } else {
+                Resource.Error(Exception(response.message))
+            }
+        } catch (e: Exception) {
+            Resource.Error(e, readableError(e, "Couldn't disable notifications."))
         }
     }
 

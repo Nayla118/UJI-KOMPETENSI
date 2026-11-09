@@ -53,6 +53,7 @@
     --color-emerald-50: #eaf3ee;
     --color-emerald-100: #eaf3ee;
     --color-emerald-500: #4f7d66;
+    --color-emerald-500: #4f7d66;
     --color-emerald-600: #4f7d66;
     --color-emerald-700: #3f6a55;
 
@@ -108,6 +109,33 @@
     --shadow-lg: 0 12px 28px -8px rgb(73 55 71 / 0.12);
     --shadow-xl: 0 20px 25px -5px rgb(73 55 71 / 0.14),
         0 8px 10px -6px rgb(73 55 71 / 0.10);
+}
+
+/* Dark mode variables */
+@media (prefers-color-scheme: dark) {
+    :root {
+        --color-cream: #1a141d;
+        --color-blush: #2a1e28;
+        --color-muted: #b39aa8;
+        --color-border: #40323c;
+        --color-background-light: #1a141d;
+    }
+}
+
+.dark {
+    --color-cream: #1a141d;
+    --color-blush: #2a1e28;
+    --color-muted: #b39aa8;
+    --color-border: #40323c;
+    --color-background-light: #1a141d;
+}
+
+/* Base Styles */
+body {
+    font-family: var(--font-sans);
+    background-color: var(--color-cream);
+    color: var(--color-ink);
+    transition: background-color 0.2s, color 0.2s;
 }
 
 /* Base Styles */

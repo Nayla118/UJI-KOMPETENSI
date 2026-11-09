@@ -55,7 +55,7 @@ class AuthController extends Controller
 
         $email = $identity['email'];
 
-        if (!$email) {
+        if (! $email) {
             return response()->json([
                 'success' => false,
                 'message' => 'This account has no email address.',
@@ -68,7 +68,7 @@ class AuthController extends Controller
         // Never silently re-link an existing Travelo account to a different
         // Firebase identity just because the email string matches.
         if (
-            !$existingByUid
+            ! $existingByUid
             && $existingByEmail
             && $existingByEmail->firebase_uid
             && $existingByEmail->firebase_uid !== $identity['uid']
@@ -87,7 +87,7 @@ class AuthController extends Controller
 
         // Email/password accounts created directly in Firebase must complete
         // the Travelo OTP step before they can get a local session.
-        if (!$existingByUid && !$trustedEmail) {
+        if (! $existingByUid && ! $trustedEmail) {
             return response()->json([
                 'success' => false,
                 'message' => 'Please verify your email address before signing in.',
@@ -168,7 +168,7 @@ class AuthController extends Controller
 
         $email = $identity['email'];
 
-        if (!$email) {
+        if (! $email) {
             return response()->json([
                 'success' => false,
                 'message' => 'This account has no email address.',
@@ -177,7 +177,7 @@ class AuthController extends Controller
 
         $trustedEmail = $identity['email_verified'] || $identity['provider'] === 'google.com';
 
-        if (!$trustedEmail) {
+        if (! $trustedEmail) {
             return response()->json([
                 'success' => false,
                 'message' => 'Please verify your email address before registering.',

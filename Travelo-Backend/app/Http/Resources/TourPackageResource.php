@@ -31,15 +31,42 @@ class TourPackageResource extends JsonResource
             'title' => $this->title,
             'description' => $this->description,
             'price' => (float) $this->price,
-            'price_formatted' => 'Rp ' . number_format($this->price, 0, ',', '.'),
+            'price_formatted' => 'Rp '.number_format($this->price, 0, ',', '.'),
             'duration_days' => (int) $this->duration_days,
             'max_people' => (int) $this->max_people,
             'image' => $this->imageUrl,
             'image_path' => $this->image,
+            'inclusions' => array_values((array) ($this->inclusions ?? [])),
+            'exclusions' => array_values((array) ($this->exclusions ?? [])),
+            'meeting_point' => $this->meeting_point,
+            'meeting_latitude' => $this->meeting_latitude !== null ? (float) $this->meeting_latitude : null,
+            'meeting_longitude' => $this->meeting_longitude !== null ? (float) $this->meeting_longitude : null,
+            'terms' => $this->terms,
+            // Only eager-loaded by the detail endpoint, so list responses stay
+            // free of N+1 gallery/itinerary queries.
+            'itinerary' => TourPackageItineraryDayResource::collection(
+                $this->whenLoaded('itineraryDays')
+            ),
+            'images' => TourPackageImageResource::collection(
+                $this->whenLoaded('images')
+            ),
             // A package inherits the published aggregate of its destination.
             'rating' => $average,
             'review_count' => $reviewCount,
-            'bookings_count' => $this->whenCounted('bookings', $this->bookings_count ?? $this->bookings->count()),
+            // Avoid lazy-loading bookings when the controller did not
+            // withCount them; list responses must stay N+1 free.
+            'bookings_count' => (int) (
+                $this->bookings_count
+                ?? ($this->relationLoaded('bookings') ? $this->bookings->count() : 0)
+            ),
+            'is_wishlisted' => $this->when(
+                $request->user() !== null,
+                fn () => in_array(
+                    $this->id,
+                    (array) $request->attributes->get('wishlisted_tour_package_ids', []),
+                    true
+                )
+            ),
             'created_at' => $this->created_at?->toIso8601String(),
             'updated_at' => $this->updated_at?->toIso8601String(),
         ];

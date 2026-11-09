@@ -11,6 +11,7 @@ class Review extends Model
     use HasFactory;
 
     public const STATUS_PUBLISHED = 'published';
+
     public const STATUS_HIDDEN = 'hidden';
 
     public const STATUSES = [
@@ -19,6 +20,7 @@ class Review extends Model
     ];
 
     public const MIN_RATING = 1;
+
     public const MAX_RATING = 5;
 
     protected $fillable = [

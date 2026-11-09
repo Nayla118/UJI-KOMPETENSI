@@ -4,7 +4,14 @@ namespace App\Providers;
 
 use App\Contracts\FirebaseIdentityVerifier;
 use App\Mail\Transport\BrevoApiTransport;
+use App\Models\Booking;
+use App\Models\User;
+use App\Observers\BookingObserver;
+use App\Policies\BookingPolicy;
+use App\Policies\DestinationPolicy;
+use App\Policies\TicketPolicy;
 use App\Services\FirebaseTokenVerifier;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\ServiceProvider;
 
@@ -29,5 +36,21 @@ class AppServiceProvider extends ServiceProvider
         Mail::extend('brevo-api', function (array $config) {
             return new BrevoApiTransport((string) ($config['key'] ?? ''));
         });
+
+        // Promo quota is released on any cancellation/expiry transition.
+        Booking::observe(BookingObserver::class);
+
+        // Centralized authorization policies.
+        Gate::define('permission', fn (User $user, string $permission): bool => $user->hasPermission($permission));
+
+        Gate::define('destination.view', [DestinationPolicy::class, 'view']);
+        Gate::define('destination.manage', [DestinationPolicy::class, 'manage']);
+        Gate::define('destination.scan', [DestinationPolicy::class, 'scan']);
+
+        Gate::define('booking.view', [BookingPolicy::class, 'view']);
+        Gate::define('booking.manage', [BookingPolicy::class, 'manage']);
+
+        Gate::define('ticket.redeem', [TicketPolicy::class, 'redeem']);
+        Gate::define('ticket.redeem-for-booking', [TicketPolicy::class, 'redeemForBooking']);
     }
 }

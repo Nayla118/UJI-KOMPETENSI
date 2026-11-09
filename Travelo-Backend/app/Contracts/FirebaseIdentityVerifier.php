@@ -2,6 +2,8 @@
 
 namespace App\Contracts;
 
+use App\Exceptions\InvalidFirebaseTokenException;
+
 interface FirebaseIdentityVerifier
 {
     /**
@@ -20,7 +22,7 @@ interface FirebaseIdentityVerifier
      *     email_verified: bool
      * }
      *
-     * @throws \App\Exceptions\InvalidFirebaseTokenException
+     * @throws InvalidFirebaseTokenException
      */
     public function verify(string $idToken): array;
 }

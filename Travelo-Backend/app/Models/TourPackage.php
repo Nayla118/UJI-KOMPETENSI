@@ -19,10 +19,20 @@ class TourPackage extends Model
         'duration_days',
         'max_people',
         'image',
+        'inclusions',
+        'exclusions',
+        'meeting_point',
+        'meeting_latitude',
+        'meeting_longitude',
+        'terms',
     ];
 
     protected $casts = [
         'price' => 'decimal:2',
+        'inclusions' => 'array',
+        'exclusions' => 'array',
+        'meeting_latitude' => 'decimal:7',
+        'meeting_longitude' => 'decimal:7',
     ];
 
     /**
@@ -39,7 +49,7 @@ class TourPackage extends Model
             return $this->image;
         }
 
-        return asset('storage/' . $this->image);
+        return asset('storage/'.$this->image);
     }
 
     /**
@@ -49,6 +59,7 @@ class TourPackage extends Model
     {
         $array = parent::toArray();
         $array['image'] = $this->imageUrl;
+
         return $array;
     }
 
@@ -60,5 +71,32 @@ class TourPackage extends Model
     public function bookings(): HasMany
     {
         return $this->hasMany(Booking::class);
+    }
+
+    /**
+     * Explicit per-date capacity/closed overrides. Dates without a row use
+     * `max_people` as their capacity.
+     */
+    public function dateAvailabilities(): HasMany
+    {
+        return $this->hasMany(TourPackageDateAvailability::class);
+    }
+
+    /**
+     * Day-by-day itinerary, always returned in display order.
+     */
+    public function itineraryDays(): HasMany
+    {
+        return $this->hasMany(TourPackageItineraryDay::class)
+            ->orderBy('sort_order')
+            ->orderBy('day_number');
+    }
+
+    /**
+     * Gallery photos, always returned in display order.
+     */
+    public function images(): HasMany
+    {
+        return $this->hasMany(TourPackageImage::class)->orderBy('sort_order');
     }
 }

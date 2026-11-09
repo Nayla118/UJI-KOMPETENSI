@@ -80,21 +80,24 @@ class ImportService
             if (empty($data)) {
                 $results['success'] = false;
                 $results['errors'][] = 'CSV file is empty or invalid format.';
+
                 return $results;
             }
 
             // Validate headers
             $headers = array_keys($data[0]);
             $validation = $this->validateDestinationHeaders($headers);
-            if (!$validation['valid']) {
+            if (! $validation['valid']) {
                 $results['success'] = false;
                 $results['errors'] = $validation['errors'];
+
                 return $results;
             }
 
             // If preview mode, return first 10 rows
             if ($preview) {
                 $results['preview_data'] = array_slice($data, 0, 10);
+
                 return $results;
             }
 
@@ -106,9 +109,10 @@ class ImportService
 
                     // Validate row
                     $validation = $this->validateDestinationRow($row, $rowNumber);
-                    if (!$validation['valid']) {
+                    if (! $validation['valid']) {
                         $results['errors'] = array_merge($results['errors'], $validation['errors']);
                         $results['skipped']++;
+
                         continue;
                     }
 
@@ -151,11 +155,11 @@ class ImportService
             } catch (\Exception $e) {
                 DB::rollBack();
                 $results['success'] = false;
-                $results['errors'][] = 'Database error: ' . $e->getMessage();
+                $results['errors'][] = 'Database error: '.$e->getMessage();
             }
         } catch (\Exception $e) {
             $results['success'] = false;
-            $results['errors'][] = 'Error processing CSV: ' . $e->getMessage();
+            $results['errors'][] = 'Error processing CSV: '.$e->getMessage();
         }
 
         return $results;
@@ -183,21 +187,24 @@ class ImportService
             if (empty($data)) {
                 $results['success'] = false;
                 $results['errors'][] = 'CSV file is empty or invalid format.';
+
                 return $results;
             }
 
             // Validate headers
             $headers = array_keys($data[0]);
             $validation = $this->validateTourPackageHeaders($headers);
-            if (!$validation['valid']) {
+            if (! $validation['valid']) {
                 $results['success'] = false;
                 $results['errors'] = $validation['errors'];
+
                 return $results;
             }
 
             // If preview mode, return first 10 rows
             if ($preview) {
                 $results['preview_data'] = array_slice($data, 0, 10);
+
                 return $results;
             }
 
@@ -209,17 +216,19 @@ class ImportService
 
                     // Validate row
                     $validation = $this->validateTourPackageRow($row, $rowNumber);
-                    if (!$validation['valid']) {
+                    if (! $validation['valid']) {
                         $results['errors'] = array_merge($results['errors'], $validation['errors']);
                         $results['skipped']++;
+
                         continue;
                     }
 
                     // Check if destination exists
                     $destination = Destination::find($row['destination_id']);
-                    if (!$destination) {
+                    if (! $destination) {
                         $results['errors'][] = "Row {$rowNumber}: Destination with ID {$row['destination_id']} not found. Skipping.";
                         $results['skipped']++;
+
                         continue;
                     }
 
@@ -264,11 +273,11 @@ class ImportService
             } catch (\Exception $e) {
                 DB::rollBack();
                 $results['success'] = false;
-                $results['errors'][] = 'Database error: ' . $e->getMessage();
+                $results['errors'][] = 'Database error: '.$e->getMessage();
             }
         } catch (\Exception $e) {
             $results['success'] = false;
-            $results['errors'][] = 'Error processing CSV: ' . $e->getMessage();
+            $results['errors'][] = 'Error processing CSV: '.$e->getMessage();
         }
 
         return $results;
@@ -290,6 +299,7 @@ class ImportService
         $headers = fgetcsv($handle);
         if ($headers === false) {
             fclose($handle);
+
             return [];
         }
 
@@ -307,6 +317,7 @@ class ImportService
         }
 
         fclose($handle);
+
         return $data;
     }
 
@@ -319,7 +330,7 @@ class ImportService
         $headers = array_map('strtolower', $headers);
 
         foreach ($this->destinationRequiredColumns as $required) {
-            if (!in_array($required, $headers)) {
+            if (! in_array($required, $headers)) {
                 $errors[] = "Missing required column: {$required}";
             }
         }
@@ -339,7 +350,7 @@ class ImportService
         $headers = array_map('strtolower', $headers);
 
         foreach ($this->tourPackageRequiredColumns as $required) {
-            if (!in_array($required, $headers)) {
+            if (! in_array($required, $headers)) {
                 $errors[] = "Missing required column: {$required}";
             }
         }
@@ -384,7 +395,7 @@ class ImportService
         // Check required fields
         if (empty($row['destination_id'])) {
             $errors[] = "Row {$rowNumber}: Destination ID is required.";
-        } elseif (!is_numeric($row['destination_id'])) {
+        } elseif (! is_numeric($row['destination_id'])) {
             $errors[] = "Row {$rowNumber}: Destination ID must be a number.";
         }
 
@@ -394,19 +405,19 @@ class ImportService
 
         if (empty($row['price'])) {
             $errors[] = "Row {$rowNumber}: Price is required.";
-        } elseif (!is_numeric($row['price']) || $row['price'] < 0) {
+        } elseif (! is_numeric($row['price']) || $row['price'] < 0) {
             $errors[] = "Row {$rowNumber}: Price must be a positive number.";
         }
 
         if (empty($row['duration_days'])) {
             $errors[] = "Row {$rowNumber}: Duration is required.";
-        } elseif (!is_int((int)$row['duration_days']) || $row['duration_days'] < 1) {
+        } elseif (! is_int((int) $row['duration_days']) || $row['duration_days'] < 1) {
             $errors[] = "Row {$rowNumber}: Duration must be a positive integer.";
         }
 
         if (empty($row['max_people'])) {
             $errors[] = "Row {$rowNumber}: Max people is required.";
-        } elseif (!is_int((int)$row['max_people']) || $row['max_people'] < 1) {
+        } elseif (! is_int((int) $row['max_people']) || $row['max_people'] < 1) {
             $errors[] = "Row {$rowNumber}: Max people must be a positive integer.";
         }
 

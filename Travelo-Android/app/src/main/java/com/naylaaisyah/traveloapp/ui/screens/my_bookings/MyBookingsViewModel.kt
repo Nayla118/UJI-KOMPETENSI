@@ -6,9 +6,11 @@ import androidx.lifecycle.viewModelScope
 import com.naylaaisyah.traveloapp.R
 import com.naylaaisyah.traveloapp.data.models.Booking
 import com.naylaaisyah.traveloapp.data.models.ETicket
+import com.naylaaisyah.traveloapp.data.models.RefundPreview
 import com.naylaaisyah.traveloapp.data.recovery.DocumentRecoveryJob
 import com.naylaaisyah.traveloapp.data.recovery.DocumentRecoveryRules
 import com.naylaaisyah.traveloapp.data.recovery.DocumentRecoveryStore
+import com.naylaaisyah.traveloapp.data.repository.InvoiceFile
 import com.naylaaisyah.traveloapp.data.repository.TraveloRepository
 import com.naylaaisyah.traveloapp.data.tickets.TicketUsageNoticeRules
 import com.naylaaisyah.traveloapp.data.tickets.TicketUsageNoticeStore
@@ -41,7 +43,20 @@ data class MyBookingsUiState(
      * A ticket that was active on the previous successful load and is now used.
      * Shown once after the backend confirms the gate scan.
      */
-    val scannedTicketNotice: Booking? = null
+    val scannedTicketNotice: Booking? = null,
+    // Cancellation submission. The booking only changes after an admin
+    // approves, so success here means "request sent", not "cancelled".
+    val changeRequestInFlight: Boolean = false,
+    val changeRequestError: String? = null,
+    val changeRequestNotice: String? = null,
+    // Refund estimate for a specific booking, loaded before the user submits
+    // a cancellation request.
+    val refundPreviewFor: Map<Int, RefundPreview> = emptyMap(),
+    // Invoice download for a paid booking. The screen writes the file to cache
+    // and opens/shares it, then clears invoiceFile.
+    val invoiceDownloadingFor: Int? = null,
+    val invoiceFile: InvoiceFile? = null,
+    val invoiceError: String? = null,
 )
 
 /**
@@ -148,6 +163,84 @@ class MyBookingsViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(scannedTicketNotice = null)
     }
 
+    fun requestCancellation(bookingId: Int, reason: String?) {
+        if (_uiState.value.changeRequestInFlight) return
+
+        val token = sessionManager.authToken
+        if (token.isNullOrBlank()) {
+            _uiState.value = _uiState.value.copy(
+                changeRequestError = "Your session has expired. Please sign in again."
+            )
+            return
+        }
+
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(
+                changeRequestInFlight = true,
+                changeRequestError = null,
+                changeRequestNotice = null
+            )
+
+            when (val result = repository.requestBookingCancellation(
+                token = token,
+                bookingId = bookingId,
+                reason = reason
+            )) {
+                is Resource.Success -> {
+                    _uiState.value = _uiState.value.copy(
+                        changeRequestInFlight = false,
+                        changeRequestNotice = "Cancellation request sent. Our team will review it."
+                    )
+                    loadBookings(silent = true)
+                }
+                is Resource.Error -> {
+                    _uiState.value = _uiState.value.copy(
+                        changeRequestInFlight = false,
+                        changeRequestError = result.message
+                    )
+                }
+                else -> {
+                    _uiState.value = _uiState.value.copy(changeRequestInFlight = false)
+                }
+            }
+        }
+    }
+
+    fun clearChangeRequestError() {
+        _uiState.value = _uiState.value.copy(changeRequestError = null)
+    }
+
+    fun clearChangeRequestNotice() {
+        _uiState.value = _uiState.value.copy(changeRequestNotice = null)
+    }
+
+    /** Load the refund estimate for a booking (shown before confirming cancellation). */
+    fun loadRefundPreview(bookingId: Int) {
+        val token = sessionManager.authToken
+        if (token.isNullOrBlank()) return
+
+        viewModelScope.launch {
+            when (val result = repository.getRefundPreview(token, bookingId)) {
+                is Resource.Success -> {
+                    _uiState.value = _uiState.value.copy(
+                        refundPreviewFor = _uiState.value.refundPreviewFor + (bookingId to result.data!!)
+                    )
+                }
+                is Resource.Error -> {
+                    // Silent failure: the cancellation dialog can still proceed,
+                    // just without a refund estimate card.
+                }
+                else -> Unit
+            }
+        }
+    }
+
+    fun clearRefundPreview(bookingId: Int) {
+        _uiState.value = _uiState.value.copy(
+            refundPreviewFor = _uiState.value.refundPreviewFor - bookingId
+        )
+    }
+
     fun loadTicket(bookingId: Int) {
         val token = sessionManager.authToken
         if (token.isNullOrBlank()) {
@@ -206,6 +299,54 @@ class MyBookingsViewModel @Inject constructor(
             ticketError = null,
             ticketErrorRes = null
         )
+    }
+
+    /**
+     * Download the print-ready invoice for a paid booking. The backend rejects
+     * unpaid bookings with a clear 409 message, which is shown as-is.
+     */
+    fun downloadInvoice(bookingId: Int) {
+        val token = sessionManager.authToken
+        if (token.isNullOrBlank()) {
+            _uiState.value = _uiState.value.copy(
+                invoiceError = "Your session has expired. Please sign in again."
+            )
+            return
+        }
+
+        if (_uiState.value.invoiceDownloadingFor != null) return
+
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(
+                invoiceDownloadingFor = bookingId,
+                invoiceFile = null,
+                invoiceError = null
+            )
+
+            when (val result = repository.downloadInvoice(token, bookingId)) {
+                is Resource.Success -> {
+                    _uiState.value = _uiState.value.copy(
+                        invoiceDownloadingFor = null,
+                        invoiceFile = result.data
+                    )
+                }
+                is Resource.Error -> {
+                    _uiState.value = _uiState.value.copy(
+                        invoiceDownloadingFor = null,
+                        invoiceError = result.message
+                    )
+                }
+                else -> Unit
+            }
+        }
+    }
+
+    fun consumeInvoiceFile() {
+        _uiState.value = _uiState.value.copy(invoiceFile = null)
+    }
+
+    fun consumeInvoiceError() {
+        _uiState.value = _uiState.value.copy(invoiceError = null)
     }
 
     fun clearError() {

@@ -90,7 +90,7 @@ class ExportController extends Controller
             return back()->with('error', 'No data to export');
         }
 
-        $filename = $filename . '_' . now()->format('Y-m-d_His');
+        $filename = $filename.'_'.now()->format('Y-m-d_His');
 
         switch ($format) {
             case 'csv':
@@ -108,6 +108,7 @@ class ExportController extends Controller
             case 'pdf':
                 // For PDF, we'll return HTML that can be printed to PDF
                 $html = $this->exportService->toHtml($data, $title);
+
                 return response($html)
                     ->header('Content-Type', 'text/html');
 

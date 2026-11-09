@@ -43,6 +43,7 @@ import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.ErrorOutline
+import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Refresh
@@ -135,6 +136,7 @@ fun ProfileScreen(
     onLogout: () -> Unit,
     onMyBookings: () -> Unit = {},
     onTicketHistory: () -> Unit = {},
+    onFavorites: () -> Unit = {},
     viewModel: ProfileViewModel = hiltViewModel(),
     authViewModel: AuthViewModel = hiltViewModel()
 ) {
@@ -366,6 +368,13 @@ fun ProfileScreen(
                 Spacer(Modifier.height(TraveloSpacing.xs))
 
                 TraveloCard(contentPadding = PaddingValues(0.dp)) {
+                    ProfileActionRow(
+                        icon = Icons.Outlined.FavoriteBorder,
+                        title = "Favorit Saya",
+                        subtitle = "Destinasi dan paket yang kamu simpan",
+                        onClick = onFavorites
+                    )
+                    ProfileDetailDivider()
                     ProfileActionRow(
                         icon = Icons.Outlined.Shield,
                         title = "Privacy & data",

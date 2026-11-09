@@ -31,7 +31,7 @@ class MidtransController extends Controller
             return false;
         }
 
-        $hash = hash('sha512', $orderId . $statusCode . $grossAmount . $serverKey);
+        $hash = hash('sha512', $orderId.$statusCode.$grossAmount.$serverKey);
 
         return hash_equals($hash, strtolower($signature));
     }
@@ -52,7 +52,7 @@ class MidtransController extends Controller
         // logged as a warning and the payload was still trusted.
         $signature = $request->input('signature_key');
 
-        if (!is_string($signature) || !$this->verifySignature($request, $signature)) {
+        if (! is_string($signature) || ! $this->verifySignature($request, $signature)) {
             Log::warning('Rejected Midtrans webhook with invalid or missing signature', [
                 'order_id' => $request->input('order_id'),
             ]);
@@ -64,11 +64,12 @@ class MidtransController extends Controller
         }
 
         // Validate required fields
-        if (!$request->has('order_id') || !$request->has('transaction_status')) {
+        if (! $request->has('order_id') || ! $request->has('transaction_status')) {
             Log::error('Missing required webhook fields', [
                 'has_order_id' => $request->has('order_id'),
                 'has_transaction_status' => $request->has('transaction_status'),
             ]);
+
             return response()->json([
                 'success' => false,
                 'message' => 'Missing required fields',
@@ -79,10 +80,11 @@ class MidtransController extends Controller
 
         // Extract booking ID from order_id
         $bookingId = $this->midtransService->extractBookingIdFromOrderId($orderId);
-        Log::info('Extracted Booking ID: ' . ($bookingId ?? 'null'));
+        Log::info('Extracted Booking ID: '.($bookingId ?? 'null'));
 
-        if (!$bookingId) {
+        if (! $bookingId) {
             Log::error('Could not extract booking ID from order_id', ['order_id' => $orderId]);
+
             return response()->json([
                 'success' => false,
                 'message' => 'Invalid order ID format',
@@ -91,8 +93,9 @@ class MidtransController extends Controller
 
         $booking = Booking::find($bookingId);
 
-        if (!$booking) {
+        if (! $booking) {
             Log::error('Booking not found', ['booking_id' => $bookingId, 'order_id' => $orderId]);
+
             // Return 200 to avoid retries
             return response()->json([
                 'success' => false,
@@ -168,8 +171,8 @@ class MidtransController extends Controller
                     ? false
                     : ($isProduction ? str_starts_with($serverKey, 'Mid-server-') : str_starts_with($serverKey, 'SB-Mid-server-')),
                 'app_url' => config('app.url'),
-                'webhook_callback' => rtrim((string) config('app.url'), '/') . '/api/midtrans/callback',
-                'webhook_notification' => rtrim((string) config('app.url'), '/') . '/api/midtrans/notification',
+                'webhook_callback' => rtrim((string) config('app.url'), '/').'/api/midtrans/callback',
+                'webhook_notification' => rtrim((string) config('app.url'), '/').'/api/midtrans/notification',
             ],
         ]);
     }
@@ -187,7 +190,16 @@ class MidtransController extends Controller
 
         try {
             $midtransStatus = $this->midtransService->verifyBookingAcrossOrders($booking);
-            $syncResult = $this->midtransService->syncBookingPaymentStatus($booking, $midtransStatus['raw'] ?? $midtransStatus);
+
+            // Same serialization as the webhook path: the row lock inside
+            // syncBookingPaymentStatus only applies within a transaction, and
+            // this endpoint can race the until-then-unpaid expiry command.
+            $syncResult = DB::transaction(
+                fn () => $this->midtransService->syncBookingPaymentStatus(
+                    $booking,
+                    $midtransStatus['raw'] ?? $midtransStatus
+                )
+            );
 
             Log::info('Manual sync completed', [
                 'booking_id' => $booking->id,
@@ -232,7 +244,11 @@ class MidtransController extends Controller
                 'booking_id' => $booking->id,
                 'booking_status' => $booking->booking_status,
                 'payment_status' => $booking->payment_status,
-                'payment' => [ 
+                'payment_expires_at' => $booking->payment_expires_at?->toIso8601ZuluString(),
+                'payment_expires_in_seconds' => $booking->payment_expires_in_seconds,
+                'payment_expired' => $booking->payment_expired,
+                'server_time' => now()->toIso8601ZuluString(),
+                'payment' => [
                     'id' => $payment->id ?? null,
                     'status' => $payment->payment_status ?? 'pending',
                     'method' => $payment->payment_method ?? null,

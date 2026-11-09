@@ -3,6 +3,7 @@ package com.naylaaisyah.traveloapp
 import android.app.Application
 import coil.ImageLoader
 import coil.ImageLoaderFactory
+import com.naylaaisyah.traveloapp.notifications.TraveloNotifications
 import dagger.hilt.android.HiltAndroidApp
 import okhttp3.OkHttpClient
 
@@ -10,6 +11,10 @@ import okhttp3.OkHttpClient
 class TraveloApp : Application(), ImageLoaderFactory {
     override fun onCreate() {
         super.onCreate()
+
+        // Created eagerly so a push received before any activity starts still
+        // has a valid channel to display into.
+        TraveloNotifications.createChannel(this)
     }
 
     /**

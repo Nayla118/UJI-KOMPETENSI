@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Contracts\FirebaseIdentityVerifier;
+use App\Exceptions\InvalidFirebaseTokenException;
 use App\Models\User;
 use Illuminate\Support\Facades\Log;
 
@@ -29,7 +30,7 @@ class FirebaseAuthService
      *     email_verified: bool
      * }
      *
-     * @throws \App\Exceptions\InvalidFirebaseTokenException
+     * @throws InvalidFirebaseTokenException
      */
     public function verifyIdToken(string $token): array
     {
@@ -44,13 +45,13 @@ class FirebaseAuthService
      */
     public function syncUser(string $firebaseUid, ?string $email, ?string $name = null, ?string $photoUrl = null): array
     {
-        if (!$email) {
+        if (! $email) {
             return ['error' => 'Email is required from Firebase token'];
         }
 
         $user = User::where('firebase_uid', $firebaseUid)->first();
 
-        if (!$user) {
+        if (! $user) {
             $user = User::where('email', $email)->first();
 
             if ($user) {

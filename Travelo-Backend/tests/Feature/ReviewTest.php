@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Models\ActivityLog;
 use App\Models\Booking;
 use App\Models\Destination;
 use App\Models\Payment;
@@ -20,7 +19,7 @@ use Tests\TestCase;
  * - the ticket must have been redeemed at the gate (ticket_status=used)
  * - one review per booking, enforced by a unique index
  * - only published reviews feed public aggregates
- * - admin moderation is audited and unavailable to scanner staff
+ * - admin moderation is audited and unavailable to scanner owner
  */
 class ReviewTest extends TestCase
 {
@@ -568,19 +567,19 @@ class ReviewTest extends TestCase
         ]);
     }
 
-    public function test_scanner_staff_cannot_moderate_reviews(): void
+    public function test_scanner_owner_cannot_moderate_reviews(): void
     {
         $user = $this->makeUser();
         $destination = $this->makeDestination();
         $review = $this->createReviewFor($this->eligibleBooking($user, $destination));
-        $staff = $this->makeUser('Gate Staff', ['role' => User::ROLE_STAFF]);
-        $staff->staffDestinations()->attach($destination);
+        $owner = $this->makeUser('Gate Owner', ['role' => User::ROLE_OWNER]);
+        $owner->destinations()->attach($destination->id);
 
-        $this->actingAs($staff)
+        $this->actingAs($owner)
             ->get('/admin/reviews')
             ->assertForbidden();
 
-        $this->actingAs($staff)
+        $this->actingAs($owner)
             ->patch("/admin/reviews/{$review->id}/moderate", [
                 'action' => 'hide',
                 'reason' => 'Should not be allowed',

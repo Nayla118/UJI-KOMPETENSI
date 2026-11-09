@@ -26,7 +26,15 @@
                 </div>
                 <div class="flex justify-between">
                     <span class="text-gray-500">Payment Method</span>
-                    <span class="font-medium text-gray-800">{{ $payment->payment_method ?? 'N/A' }}</span>
+                    <span class="font-medium text-gray-800">{{ $payment->display_method }}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-gray-500">Payment Type</span>
+                    <span class="font-medium text-gray-800">{{ $payment->payment_type ?? 'N/A' }}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-gray-500">Channel</span>
+                    <span class="font-medium text-gray-800">{{ $payment->payment_channel ?? 'N/A' }}</span>
                 </div>
                 <div class="flex justify-between">
                     <span class="text-gray-500">Amount</span>

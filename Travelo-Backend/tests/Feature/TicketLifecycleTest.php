@@ -122,15 +122,18 @@ class TicketLifecycleTest extends TestCase
         return app(TicketService::class)->issue($booking->refresh())['token'];
     }
 
-    private function staffFor(?int $destinationId = null): User
+    private function ownerFor(?int $destinationId = null): User
     {
-        $staff = $this->makeUser('staff', ['role' => User::ROLE_STAFF]);
+        $owner = $this->makeUser('owner', [
+            'role' => User::ROLE_OWNER,
+            'is_active' => true,
+        ]);
 
         if ($destinationId !== null) {
-            $staff->staffDestinations()->attach($destinationId);
+            $owner->destinations()->attach($destinationId);
         }
 
-        return $staff;
+        return $owner;
     }
 
     public function test_e_ticket_is_blocked_until_payment_is_confirmed(): void
@@ -408,7 +411,7 @@ class TicketLifecycleTest extends TestCase
             ->assertJsonPath('reason', TicketService::REASON_EXPIRED);
     }
 
-    public function test_staff_can_only_redeem_for_assigned_destinations(): void
+    public function test_owner_can_only_redeem_for_assigned_destinations(): void
     {
         $user = $this->makeUser('owner');
         [$booking, , $destination] = $this->makeBooking($user, [
@@ -425,21 +428,21 @@ class TicketLifecycleTest extends TestCase
             'country' => 'Indonesia',
         ]);
 
-        $staff = $this->staffFor($otherDestination->id);
+        $owner = $this->ownerFor($otherDestination->id);
 
-        $this->actingAs($staff)
+        $this->actingAs($owner)
             ->postJson('/admin/tickets/redeem', ['token' => $token])
             ->assertStatus(403)
             ->assertJsonPath('reason', TicketService::REASON_FORBIDDEN);
 
-        $staff->staffDestinations()->attach($destination->id);
+        $owner->destinations()->attach($destination->id);
 
-        $this->actingAs($staff)
+        $this->actingAs($owner)
             ->postJson('/admin/tickets/redeem', ['token' => $token])
             ->assertOk();
     }
 
-    public function test_traveller_cannot_use_the_staff_redeem_endpoint(): void
+    public function test_traveller_cannot_use_the_redeem_endpoint(): void
     {
         $user = $this->makeUser('traveller');
         [$booking] = $this->makeBooking($user);

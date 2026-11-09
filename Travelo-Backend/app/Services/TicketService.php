@@ -21,10 +21,15 @@ use Illuminate\Support\Facades\DB;
 class TicketService
 {
     public const REASON_INVALID_TOKEN = 'invalid_token';
+
     public const REASON_NOT_PAID = 'not_paid';
+
     public const REASON_NOT_DUE = 'not_due';
+
     public const REASON_EXPIRED = 'expired';
+
     public const REASON_USED = 'used';
+
     public const REASON_FORBIDDEN = 'forbidden_destination';
 
     public function reference(Booking $booking): string
@@ -87,7 +92,7 @@ class TicketService
 
         $expected = $this->sign($encoded);
 
-        if (!hash_equals($expected, $signature)) {
+        if (! hash_equals($expected, $signature)) {
             return null;
         }
 
@@ -99,7 +104,7 @@ class TicketService
 
         $payload = json_decode($decoded, true);
 
-        if (!is_array($payload) || !isset($payload['booking_id'])) {
+        if (! is_array($payload) || ! isset($payload['booking_id'])) {
             return null;
         }
 
@@ -132,9 +137,9 @@ class TicketService
 
         $reason = null;
 
-        if (!$authentic) {
+        if (! $authentic) {
             $reason = self::REASON_INVALID_TOKEN;
-        } elseif (!$paid) {
+        } elseif (! $paid) {
             $reason = self::REASON_NOT_PAID;
         } elseif ($usage === Booking::TICKET_USED) {
             $reason = self::REASON_USED;
@@ -163,6 +168,7 @@ class TicketService
             ] : null,
             'visitor_count' => $booking->visitors->count(),
             'holder_name' => $booking->user?->name,
+            'package' => $booking->tourPackage?->title,
             'reference' => $reference,
             'ticket_used_at' => $booking->ticket_used_at?->toIso8601String(),
         ];
@@ -187,19 +193,19 @@ class TicketService
         $booking = Booking::with(['payment', 'tourPackage.destination', 'visitors', 'user'])
             ->find($payload['booking_id'] ?? 0);
 
-        if (!$booking) {
+        if (! $booking) {
             return $this->redemptionFailure(self::REASON_INVALID_TOKEN, 'This ticket is not valid.');
         }
 
         $state = $this->evaluate($booking, $payload);
 
-        if (!$state['authentic']) {
+        if (! $state['authentic']) {
             return $this->redemptionFailure(self::REASON_INVALID_TOKEN, 'This ticket is not valid.');
         }
 
         $destinationId = $booking->tourPackage?->destination_id;
 
-        if (!$staff->canRedeemForDestination($destinationId)) {
+        if (! $staff->canRedeemForDestination($destinationId)) {
             return $this->redemptionFailure(
                 self::REASON_FORBIDDEN,
                 'You are not authorized to redeem tickets for this destination.'
@@ -298,6 +304,15 @@ class TicketService
             ]
         );
 
+        try {
+            app(PushNotificationService::class)->notifyTicketScanned($booking);
+        } catch (\Throwable $e) {
+            \Log::warning('Ticket-scan push notification failed', [
+                'booking_id' => $booking->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
         return [
             'ok' => true,
             'reason' => null,
@@ -316,7 +331,7 @@ class TicketService
     {
         $booking->loadMissing('payment');
 
-        if (!$booking->isPaidAndConfirmed()) {
+        if (! $booking->isPaidAndConfirmed()) {
             return ['ok' => false, 'message' => 'Only a paid, confirmed booking can be reissued.', 'token' => null];
         }
 

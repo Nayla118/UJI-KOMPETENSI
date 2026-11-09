@@ -10,9 +10,10 @@ class FirebaseTokenVerifierTest extends TestCase
 {
     private function mapper(): FirebaseTokenVerifier
     {
-        return new class extends FirebaseTokenVerifier {
+        return new class extends FirebaseTokenVerifier
+        {
             /**
-             * @param array<string, mixed> $claims
+             * @param  array<string, mixed>  $claims
              * @return array<string, mixed>
              */
             public function map(array $claims): array

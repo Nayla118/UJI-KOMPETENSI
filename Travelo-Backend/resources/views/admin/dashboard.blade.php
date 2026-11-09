@@ -2,187 +2,151 @@
 
 @section('title', 'Dashboard | Travelo Admin')
 
-<!-- Header -->
 @section('content')
-<header class="bg-white sticky top-0 z-20 border-b border-slate-200 px-8 py-4">
-    <div class="flex items-center justify-between max-w-7xl mx-auto">
+<header class="bg-white sticky top-0 z-20 border-b border-slate-200 px-4 sm:px-8 py-4">
+    <div class="flex flex-wrap items-center justify-between gap-4 max-w-7xl mx-auto">
         <div>
             <h2 class="text-2xl font-bold tracking-tight">Dashboard</h2>
-            <p class="text-sm text-slate-500">Welcome back! Here's your travel overview.</p>
+            <p class="text-sm text-slate-500">
+                {{ $report['range']['start'] }} – {{ $report['range']['end'] }} · last 30 days
+            </p>
+        </div>
+        <div class="flex items-center gap-3">
+            <a href="{{ route('admin.reports.index') }}"
+               class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary-dark transition-colors">
+                <span class="material-symbols-outlined text-[18px]">analytics</span>
+                Open reports
+            </a>
         </div>
     </div>
 </header>
 
-<div class="p-8 max-w-7xl mx-auto space-y-6">
-    <!-- Stats Grid -->
+<div class="p-4 sm:p-8 max-w-7xl mx-auto space-y-6">
+    <!-- Summary cards -->
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <!-- Total Destinations -->
-        <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200/60 flex flex-col justify-between">
-            <div class="flex items-center justify-between mb-4">
-                <div class="p-2 bg-blue-50 text-blue-600 rounded-lg">
-                    <span class="material-symbols-outlined">map</span>
-                </div>
-                @if($destinationGrowth > 0)
-                <span class="text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-1 rounded">+{{ $destinationGrowth }}% this month</span>
-                @elseif($destinationGrowth < 0)
-                <span class="text-xs font-medium text-red-600 bg-red-50 px-2 py-1 rounded">{{ $destinationGrowth }}% this month</span>
-                @else
-                <span class="text-xs font-medium text-slate-500 bg-slate-50 px-2 py-1 rounded">No change</span>
-                @endif
-            </div>
-            <div>
-                <p class="text-slate-500 text-sm font-medium">Total Destinations</p>
-                <h3 class="text-3xl font-bold mt-1 text-slate-900">{{ $totalDestinations }}</h3>
-            </div>
-        </div>
-
-        <!-- Tour Packages -->
-        <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200/60 flex flex-col justify-between">
-            <div class="flex items-center justify-between mb-4">
-                <div class="p-2 bg-blush text-primary rounded-lg">
-                    <span class="material-symbols-outlined">inventory_2</span>
-                </div>
-                @if($tourPackageGrowth > 0)
-                <span class="text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-1 rounded">+{{ $tourPackageGrowth }}% new</span>
-                @elseif($tourPackageGrowth < 0)
-                <span class="text-xs font-medium text-red-600 bg-red-50 px-2 py-1 rounded">{{ $tourPackageGrowth }}%</span>
-                @else
-                <span class="text-xs font-medium text-slate-500 bg-slate-50 px-2 py-1 rounded">No change</span>
-                @endif
-            </div>
-            <div>
-                <p class="text-slate-500 text-sm font-medium">Tour Packages</p>
-                <h3 class="text-3xl font-bold mt-1 text-slate-900">{{ $totalTourPackages }}</h3>
-            </div>
-        </div>
-
-        <!-- Total Bookings -->
-        <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200/60 flex flex-col justify-between">
-            <div class="flex items-center justify-between mb-4">
-                <div class="p-2 bg-orange-50 text-orange-600 rounded-lg">
-                    <span class="material-symbols-outlined">book_online</span>
-                </div>
-                @if($bookingGrowth > 0)
-                <span class="text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-1 rounded">+{{ $bookingGrowth }}% vs LM</span>
-                @elseif($bookingGrowth < 0)
-                <span class="text-xs font-medium text-red-600 bg-red-50 px-2 py-1 rounded">{{ $bookingGrowth }}% vs LM</span>
-                @else
-                <span class="text-xs font-medium text-slate-500 bg-slate-50 px-2 py-1 rounded">No change</span>
-                @endif
-            </div>
-            <div>
-                <p class="text-slate-500 text-sm font-medium">Total Bookings</p>
-                <h3 class="text-3xl font-bold mt-1 text-slate-900">{{ $totalBookings }}</h3>
-            </div>
-        </div>
-
-        <!-- Total Revenue -->
         <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200/60 flex flex-col justify-between">
             <div class="flex items-center justify-between mb-4">
                 <div class="p-2 bg-emerald-50 text-emerald-600 rounded-lg">
                     <span class="material-symbols-outlined">payments</span>
                 </div>
-                @if($revenueGrowth >= 100)
-                <span class="text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-1 rounded">Target reached</span>
-                @elseif($revenueGrowth > 0)
-                <span class="text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-1 rounded">+{{ $revenueGrowth }}% vs LM</span>
-                @elseif($revenueGrowth < 0)
-                <span class="text-xs font-medium text-red-600 bg-red-50 px-2 py-1 rounded">{{ $revenueGrowth }}% vs LM</span>
-                @else
-                <span class="text-xs font-medium text-slate-500 bg-slate-50 px-2 py-1 rounded">No revenue</span>
-                @endif
+                <span class="text-xs font-medium text-slate-500 bg-slate-50 px-2 py-1 rounded">Net revenue</span>
             </div>
             <div>
-                <p class="text-slate-500 text-sm font-medium">Total Revenue</p>
-                <h3 class="text-3xl font-bold mt-1 text-slate-900">Rp {{ number_format($totalRevenue, 0, ',', '.') }}</h3>
+                <p class="text-slate-500 text-sm font-medium">Revenue</p>
+                <h3 class="text-2xl font-bold mt-1 text-slate-900">
+                    Rp {{ number_format($report['cards']['revenue_net'], 0, ',', '.') }}
+                </h3>
+                <p class="text-xs text-slate-500 mt-1">
+                    Gross Rp {{ number_format($report['cards']['revenue_gross'], 0, ',', '.') }}
+                    @if($report['cards']['revenue_refunds'] > 0)
+                        · refunds Rp {{ number_format($report['cards']['revenue_refunds'], 0, ',', '.') }}
+                    @endif
+                </p>
+            </div>
+        </div>
+
+        <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200/60 flex flex-col justify-between">
+            <div class="flex items-center justify-between mb-4">
+                <div class="p-2 bg-orange-50 text-orange-600 rounded-lg">
+                    <span class="material-symbols-outlined">book_online</span>
+                </div>
+                <span class="text-xs font-medium text-slate-500 bg-slate-50 px-2 py-1 rounded">
+                    {{ $report['cards']['cancelled'] }} cancelled
+                </span>
+            </div>
+            <div>
+                <p class="text-slate-500 text-sm font-medium">Bookings</p>
+                <h3 class="text-3xl font-bold mt-1 text-slate-900">{{ number_format($report['cards']['bookings']) }}</h3>
+                <p class="text-xs text-slate-500 mt-1">
+                    Cancellation rate {{ $report['cards']['cancellation_rate'] }}%
+                </p>
+            </div>
+        </div>
+
+        <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200/60 flex flex-col justify-between">
+            <div class="flex items-center justify-between mb-4">
+                <div class="p-2 bg-blue-50 text-blue-600 rounded-lg">
+                    <span class="material-symbols-outlined">group_add</span>
+                </div>
+                <span class="text-xs font-medium text-slate-500 bg-slate-50 px-2 py-1 rounded">Travellers</span>
+            </div>
+            <div>
+                <p class="text-slate-500 text-sm font-medium">New users</p>
+                <h3 class="text-3xl font-bold mt-1 text-slate-900">{{ number_format($report['cards']['new_users']) }}</h3>
+                <p class="text-xs text-slate-500 mt-1">Sign-ups in this period</p>
+            </div>
+        </div>
+
+        <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200/60 flex flex-col justify-between">
+            <div class="flex items-center justify-between mb-4">
+                <div class="p-2 bg-amber-50 text-amber-600 rounded-lg">
+                    <span class="material-symbols-outlined">star</span>
+                </div>
+                <span class="text-xs font-medium text-slate-500 bg-slate-50 px-2 py-1 rounded">
+                    {{ number_format($report['cards']['review_count']) }} reviews
+                </span>
+            </div>
+            <div>
+                <p class="text-slate-500 text-sm font-medium">Average rating</p>
+                <h3 class="text-3xl font-bold mt-1 text-slate-900">
+                    {{ $report['cards']['review_count'] > 0 ? number_format($report['cards']['average_rating'], 2) : '—' }}
+                </h3>
+                <p class="text-xs text-slate-500 mt-1">
+                    Occupancy {{ $report['cards']['occupancy_rate'] }}% in this period
+                </p>
             </div>
         </div>
     </div>
 
-    <!-- Middle Section: Chart and Top Destination -->
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <!-- Revenue Overview -->
+    <!-- Main charts -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div class="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-slate-200/60">
-            <div class="flex items-center justify-between mb-6">
-                <h2 class="text-lg font-bold text-slate-900">Revenue Overview (Rp)</h2>
-                <select class="bg-slate-50 border-none rounded-lg text-xs font-medium focus:ring-0">
-                    <option>Last 6 months</option>
-                    <option>Last year</option>
-                </select>
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-bold text-slate-900">Revenue trend</h2>
+                <span class="text-xs text-slate-500">Net = gross − refunded cancellations</span>
             </div>
-            <div class="h-64 relative">
-                @php
-                $maxRevenue = max($revenueData) > 0 ? max($revenueData) : 15000;
-                $points = [];
-                foreach($revenueData as $index => $value) {
-                    $x = ($index / (count($revenueData) - 1)) * 400;
-                    $y = 130 - ($value / $maxRevenue * 110);
-                    $points[] = "$x $y";
-                }
-                $pathD = 'M' . implode(' T', $points);
-                $fillPath = $pathD . ' V 150 H 0 Z';
-                @endphp
-                <svg class="w-full h-full" preserveaspectratio="none" viewbox="0 0 400 150">
-                    <path d="{{ $fillPath }}" fill="#A95372" fill-opacity="0.12"></path>
-                    <path d="{{ $pathD }}" fill="none" stroke="#A95372" stroke-linecap="round" stroke-width="3"></path>
-                </svg>
-                <div class="absolute inset-0 flex flex-col justify-between pointer-events-none text-[10px] text-slate-400">
-                    <div class="border-b border-slate-100 w-full pb-1">{{ number_format($maxRevenue, 0, ',', '.') }}</div>
-                    <div class="border-b border-slate-100 w-full pb-1">{{ number_format($maxRevenue * 0.75, 0, ',', '.') }}</div>
-                    <div class="border-b border-slate-100 w-full pb-1">{{ number_format($maxRevenue * 0.5, 0, ',', '.') }}</div>
-                    <div class="border-b border-slate-100 w-full pb-1">{{ number_format($maxRevenue * 0.25, 0, ',', '.') }}</div>
-                    <div class="pb-1">0</div>
-                </div>
-            </div>
-            <div class="flex justify-between mt-4 px-2">
-                @foreach($months as $month)
-                <span class="text-xs text-slate-400">{{ $month }}</span>
-                @endforeach
+            <div class="h-72">
+                <canvas id="chart-revenue" aria-label="Revenue trend chart" role="img"></canvas>
             </div>
         </div>
 
-        <!-- Popular Destination -->
         <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200/60">
-            <h2 class="text-lg font-bold text-slate-900 mb-6">Popular Destination</h2>
-
-            @if($topDestination)
-            <div class="relative rounded-lg overflow-hidden h-40 mb-4">
-                <div class="absolute inset-0 bg-black/30 z-10"></div>
-                @if($topDestination->image)
-                <img class="w-full h-full object-cover" src="{{ asset('storage/' . $topDestination->image) }}" alt="{{ $topDestination->name }}">
-                @else
-                <div class="w-full h-full bg-slate-200 flex items-center justify-center">
-                    <span class="material-symbols-outlined text-4xl text-slate-400">image</span>
-                </div>
-                @endif
-                <div class="absolute bottom-3 left-3 z-20">
-                    <p class="text-white font-bold text-lg">{{ $topDestination->name }}</p>
-                    <p class="text-white/80 text-xs">{{ $topDestination->total_bookings }} bookings</p>
-                </div>
+            <h2 class="text-lg font-bold text-slate-900 mb-4">Bookings by status</h2>
+            <div class="h-72">
+                <canvas id="chart-status" aria-label="Bookings by status chart" role="img"></canvas>
             </div>
-            @else
-            <div class="relative rounded-lg overflow-hidden h-40 mb-4 bg-slate-100 flex items-center justify-center">
-                <span class="material-symbols-outlined text-4xl text-slate-400">map</span>
-            </div>
-            @endif
+        </div>
+    </div>
 
-            <div class="space-y-4">
-                @foreach($popularDestinations->skip(1)->take(3) as $index => $destination)
-                <div class="flex items-center justify-between">
-                    <div class="flex items-center gap-2">
-                        <div class="w-2 h-2 rounded-full @if($index == 0) bg-blue-500 @elseif($index == 1) bg-emerald-500 @else bg-primary-light @endif"></div>
-                        <span class="text-sm font-medium">{{ $destination->name }}</span>
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-slate-200/60">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-bold text-slate-900">Booking trend</h2>
+                <span class="text-xs text-slate-500">All vs paid bookings</span>
+            </div>
+            <div class="h-64">
+                <canvas id="chart-bookings" aria-label="Booking trend chart" role="img"></canvas>
+            </div>
+        </div>
+
+        <!-- Top packages -->
+        <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200/60">
+            <h2 class="text-lg font-bold text-slate-900 mb-4">Top packages</h2>
+
+            @forelse($report['top_packages'] as $index => $package)
+                <div class="flex items-start justify-between gap-3 py-2 border-b border-slate-100 last:border-0">
+                    <div class="min-w-0">
+                        <p class="text-sm font-semibold text-slate-900 truncate">{{ $package['title'] }}</p>
+                        <p class="text-xs text-slate-500">{{ $package['destination'] }} · {{ $package['people'] }} travellers</p>
                     </div>
-                    <span class="text-sm text-slate-500">{{ $destination->total_bookings }}</span>
+                    <div class="text-right shrink-0">
+                        <p class="text-sm font-semibold text-slate-900">{{ $package['bookings'] }} bookings</p>
+                        <p class="text-xs text-slate-500">Rp {{ number_format($package['revenue'], 0, ',', '.') }}</p>
+                    </div>
                 </div>
-                @endforeach
-
-                @if($popularDestinations->count() == 0)
-                <div class="text-center text-slate-400 text-sm py-4">
-                    No destinations yet
-                </div>
-                @endif
-            </div>
+            @empty
+                <p class="text-sm text-slate-400 py-6 text-center">No paid bookings in this period.</p>
+            @endforelse
         </div>
     </div>
 
@@ -232,7 +196,7 @@
                             </span>
                             @else
                             <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                                Failed
+                                {{ ucfirst($booking->payment_status) }}
                             </span>
                             @endif
                         </td>
@@ -258,3 +222,8 @@
     </div>
 </div>
 @endsection
+
+@push('scripts')
+<script id="report-chart-data" type="application/json">{!! json_encode($chartData, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) !!}</script>
+@vite('resources/js/reports.js')
+@endpush

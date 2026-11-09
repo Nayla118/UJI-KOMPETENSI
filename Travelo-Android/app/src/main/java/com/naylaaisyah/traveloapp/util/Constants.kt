@@ -38,3 +38,19 @@ object Constants {
     const val MIN_PASSWORD_LENGTH = 8
     const val MAX_PASSWORD_LENGTH = 128
 }
+
+/**
+ * Builds a loadable image URL. Absolute URLs (http/https) are returned as-is;
+ * relative storage paths are resolved against the API base URL so the image is
+ * always fetched from the same host the app already talks to.
+ */
+fun buildImageUrl(baseUrl: String, path: String?): String? {
+    if (path.isNullOrBlank()) {
+        return null
+    }
+    return if (path.startsWith("http://") || path.startsWith("https://")) {
+        path
+    } else {
+        "${baseUrl.trimEnd('/')}/${path.trimStart('/')}"
+    }
+}

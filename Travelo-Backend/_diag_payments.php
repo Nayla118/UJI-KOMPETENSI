@@ -1,10 +1,12 @@
 <?php
-require __DIR__ . '/vendor/autoload.php';
-$app = require __DIR__ . '/bootstrap/app.php';
-$app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
 
-use App\Models\Payment;
+require __DIR__.'/vendor/autoload.php';
+$app = require __DIR__.'/bootstrap/app.php';
+$app->make(Kernel::class)->bootstrap();
+
 use App\Models\Booking;
+use App\Models\Payment;
+use Illuminate\Contracts\Console\Kernel;
 
 $rows = Payment::orderByDesc('updated_at')->limit(10)->get();
 foreach ($rows as $p) {

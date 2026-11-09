@@ -79,8 +79,14 @@ data class Destination(
     val reviewCount: Int = 0,
     val country: String,
     val city: String,
+    val category: String? = null,
     @SerializedName("is_popular")
     val isPopular: Boolean = false,
+    @SerializedName("is_wishlisted")
+    val isWishlisted: Boolean = false,
+    val latitude: Double? = null,
+    val longitude: Double? = null,
+    val images: List<DestinationImage> = emptyList(),
     @SerializedName("created_at")
     val createdAt: String? = null
 )
@@ -116,6 +122,8 @@ data class TourPackage(
     val rating: Double? = null,
     @SerializedName("review_count")
     val reviewCount: Int = 0,
+    @SerializedName("is_wishlisted")
+    val isWishlisted: Boolean = false,
     @SerializedName("created_at")
     val createdAt: String? = null
 )
@@ -152,15 +160,54 @@ data class TourPackageDetail(
     @SerializedName("review_count")
     val reviewCount: Int = 0,
     val destination: Destination? = null,
+    val inclusions: List<String> = emptyList(),
+    val exclusions: List<String> = emptyList(),
+    @SerializedName("meeting_point")
+    val meetingPoint: String? = null,
+    @SerializedName("meeting_latitude")
+    val meetingLatitude: Double? = null,
+    @SerializedName("meeting_longitude")
+    val meetingLongitude: Double? = null,
+    val terms: String? = null,
+    val itinerary: List<ItineraryDay> = emptyList(),
+    val images: List<TourPackageImage> = emptyList(),
+    @SerializedName("is_wishlisted")
+    val isWishlisted: Boolean = false,
     @SerializedName("created_at")
     val createdAt: String? = null
 )
 
+/** One day of a package itinerary, ordered by the backend. */
 data class ItineraryDay(
-    val day: Int,
-    val title: String,
-    val description: String,
-    val activities: List<String>? = null
+    val id: Int? = null,
+    @SerializedName("day_number")
+    val dayNumber: Int = 0,
+    val title: String = "",
+    val description: String? = null,
+    @SerializedName("sort_order")
+    val sortOrder: Int = 0
+) {
+    val day: Int
+        get() = dayNumber
+}
+
+/** A gallery photo returned by the API. `url` is ready for Coil. */
+data class TourPackageImage(
+    val id: Int? = null,
+    val path: String? = null,
+    val url: String? = null,
+    val caption: String? = null,
+    @SerializedName("sort_order")
+    val sortOrder: Int = 0
+)
+
+data class DestinationImage(
+    val id: Int? = null,
+    val path: String? = null,
+    val url: String? = null,
+    val caption: String? = null,
+    @SerializedName("sort_order")
+    val sortOrder: Int = 0
 )
 
 // Booking Models
@@ -174,10 +221,27 @@ data class Booking(
     val peopleCount: Int,
     @SerializedName("total_price")
     val totalPrice: Double,
+    @SerializedName("subtotal_amount")
+    val subtotalAmount: Double? = null,
+    @SerializedName("discount_amount")
+    val discountAmount: Double = 0.0,
+    @SerializedName("promo_code")
+    val promoCode: String? = null,
+    val promo: PromoInfo? = null,
     @SerializedName("booking_status")
     val status: String,
     @SerializedName("payment_status")
     val paymentStatus: String? = null,
+    // Server-authoritative payment window. Countdowns must use these fields,
+    // never the device wall clock (the phone may be wrong on time/zone).
+    @SerializedName("payment_expires_at")
+    val paymentExpiresAt: String? = null,
+    @SerializedName("payment_expires_in_seconds")
+    val paymentExpiresInSeconds: Int? = null,
+    @SerializedName("payment_expired")
+    val paymentExpired: Boolean? = null,
+    @SerializedName("server_time")
+    val serverTime: String? = null,
     @SerializedName("ticket_usage_status")
     val ticketUsageStatus: String = "unused",
     @SerializedName("ticket_used_at")
@@ -196,8 +260,172 @@ data class Booking(
     val reviewStatus: String? = null,
     @SerializedName("can_review")
     val canReview: Boolean? = null,
+    // Newest cancellation request. The booking itself only changes after an
+    // admin approves the request.
+    @SerializedName("latest_change_request")
+    val latestChangeRequest: BookingChangeRequest? = null,
     @SerializedName("created_at")
     val createdAt: String? = null
+)
+
+/**
+ * The promo attached to a booking. The discount snapshot lives on the booking
+ * itself; this is only used to label the applied code.
+ */
+data class PromoInfo(
+    val id: Int,
+    val code: String,
+    val description: String? = null,
+    @SerializedName("discount_type")
+    val discountType: String? = null
+)
+
+/**
+ * Server-validated price preview. Clients display these amounts and never
+ * calculate a discount locally.
+ */
+data class PromoPreview(
+    @SerializedName("promo_code")
+    val promoCode: String,
+    val subtotal: Double,
+    val discount: Double,
+    val total: Double,
+    @SerializedName("discount_type")
+    val discountType: String? = null,
+    @SerializedName("discount_value")
+    val discountValue: Double? = null,
+    @SerializedName("max_discount")
+    val maxDiscount: Double? = null
+)
+
+data class PromoValidateRequest(
+    val code: String,
+    @SerializedName("tour_package_id")
+    val tourPackageId: Int,
+    val people: Int,
+    val date: String
+)
+
+/**
+ * A traveller-initiated cancellation request. `status` is the source of truth
+ * for whether the booking has actually changed.
+ */
+data class BookingChangeRequest(
+    val id: Int,
+    @SerializedName("booking_id")
+    val bookingId: Int,
+    val type: String,
+    val status: String,
+    @SerializedName("original_booking_date")
+    val originalBookingDate: String? = null,
+    val reason: String? = null,
+    @SerializedName("admin_note")
+    val adminNote: String? = null,
+    @SerializedName("refund_status")
+    val refundStatus: String? = null,
+    @SerializedName("refund_percentage")
+    val refundPercentage: Int? = null,
+    @SerializedName("refund_amount")
+    val refundAmount: Double? = null,
+    @SerializedName("refund_reference")
+    val refundReference: String? = null,
+    @SerializedName("refunded_at")
+    val refundedAt: String? = null,
+    @SerializedName("refund_failure_reason")
+    val refundFailureReason: String? = null,
+    @SerializedName("reviewed_at")
+    val reviewedAt: String? = null,
+    @SerializedName("created_at")
+    val createdAt: String? = null
+) {
+    val isPending: Boolean
+        get() = status == STATUS_PENDING
+
+    val isCancellation: Boolean
+        get() = type == TYPE_CANCELLATION
+
+    fun refundStatusLabel(): String {
+        return when (refundStatus) {
+            "not_applicable" -> "Not applicable"
+            "pending" -> "Pending"
+            "processing" -> "Processing"
+            "refunded" -> "Refunded"
+            "failed" -> "Failed"
+            else -> refundStatus?.capitalize() ?: "Unknown"
+        }
+    }
+
+    companion object {
+        const val TYPE_CANCELLATION = "cancellation"
+
+        const val STATUS_PENDING = "pending"
+        const val STATUS_APPROVED = "approved"
+        const val STATUS_REJECTED = "rejected"
+        const val STATUS_CANCELLED = "cancelled"
+    }
+}
+
+data class BookingChangeRequestInput(
+    val type: String,
+    val reason: String? = null
+)
+
+/**
+ * Server-computed refund estimate shown before the traveller confirms a
+ * cancellation request. Amounts come from the backend; the client only
+ * formats them for display.
+ */
+data class RefundPreview(
+    val bookingId: Int,
+    @SerializedName("total_price")
+    val totalPrice: Double,
+    @SerializedName("discount_amount")
+    val discountAmount: Double,
+    val promoCode: String? = null,
+    val percentage: Int,
+    @SerializedName("refund_amount")
+    val refundAmount: Double,
+    val tier: String,
+    @SerializedName("tier_label")
+    val tierLabel: String,
+    @SerializedName("days_before")
+    val daysBefore: Int,
+    val eligible: Boolean,
+    val reason: String? = null
+)
+
+/** Per-date capacity/closed override returned by the availability endpoint. */
+data class AvailabilityDay(
+    val date: String,
+    val capacity: Int = 0,
+    val booked: Int = 0,
+    val remaining: Int = 0,
+    @SerializedName("is_closed")
+    val isClosed: Boolean = false,
+    val available: Boolean = true,
+    val reason: String? = null,
+    val note: String? = null,
+    @SerializedName("has_override")
+    val hasOverride: Boolean = false
+)
+
+data class AvailabilityMonth(
+    @SerializedName("tour_package_id")
+    val tourPackageId: Int,
+    @SerializedName("default_capacity")
+    val defaultCapacity: Int = 0,
+    val month: String,
+    val days: List<AvailabilityDay> = emptyList()
+) {
+    val byDate: Map<String, AvailabilityDay>
+        get() = days.associateBy { it.date }
+}
+
+data class DeviceTokenRequest(
+    val token: String,
+    val platform: String = "android",
+    @SerializedName("device_name")
+    val deviceName: String? = null
 )
 
 // Verified-visit review models
@@ -387,6 +615,14 @@ data class ETicket(
     val peopleCount: Int? = null,
     @SerializedName("holder_name")
     val holderName: String? = null,
+    @SerializedName("subtotal_amount")
+    val subtotalAmount: Double? = null,
+    @SerializedName("discount_amount")
+    val discountAmount: Double = 0.0,
+    @SerializedName("promo_code")
+    val promoCode: String? = null,
+    @SerializedName("total_price")
+    val totalPrice: Double? = null,
     @SerializedName("usage_status")
     val usageStatus: String = "unused",
     @SerializedName("payment_status")
@@ -404,6 +640,8 @@ data class BookingRequest(
     val peopleCount: Int,
     @SerializedName("booking_date")
     val bookingDate: String,
+    @SerializedName("promo_code")
+    val promoCode: String? = null,
     @SerializedName("special_requests")
     val specialRequests: String? = null,
     val visitors: List<VisitorRequest>? = null,
@@ -480,6 +718,16 @@ data class PaymentStatusData(
     val paymentStatus: String? = null,
     @SerializedName("total_price")
     val totalPrice: Double? = null,
+    // Server-anchored expiry/countdown fields. payment_expired is true once
+    // the backend deadline passed, even before the scheduler cancels the row.
+    @SerializedName("payment_expires_at")
+    val paymentExpiresAt: String? = null,
+    @SerializedName("payment_expires_in_seconds")
+    val paymentExpiresInSeconds: Int? = null,
+    @SerializedName("payment_expired")
+    val paymentExpired: Boolean? = null,
+    @SerializedName("server_time")
+    val serverTime: String? = null,
     @SerializedName("bookingStatus")
     val bookingStatusAlt: String? = null,
     val status: String? = null,
@@ -524,15 +772,34 @@ fun Payment.outcome(): PaymentOutcome {
 }
 
 fun Booking.paymentOutcome(): PaymentOutcome {
-    val p = payment ?: return if (status.lowercase() == "confirmed") {
-        PaymentOutcome.SUCCESS
-    } else {
-        PaymentOutcome.WAITING
+    // Backend-confirmed success always wins, even if the payment relation was
+    // not included (e.g. a partial list response).
+    if (status.lowercase() == "confirmed" || paymentStatus?.lowercase() == "paid") {
+        return PaymentOutcome.SUCCESS
     }
-    val outcome = p.outcome()
-    // Booking confirmed always wins (backend source of truth for success).
-    if (status.lowercase() == "confirmed") return PaymentOutcome.SUCCESS
-    return outcome
+
+    val local = paymentStatus?.lowercase()
+
+    if (local == "expired" || local == "expire") return PaymentOutcome.EXPIRED
+
+    if (local == "failed" || local == "deny" || local == "cancel") {
+        val raw = payment?.transactionStatus?.lowercase()
+        return if (raw == "cancel") PaymentOutcome.CANCELLED else PaymentOutcome.FAILED
+    }
+
+    return payment?.outcome() ?: PaymentOutcome.WAITING
+}
+
+/**
+ * Cancellation is only meaningful for a paid, confirmed, unused ticket with no
+ * request already waiting for review. The backend re-checks all of this,
+ * including the visit date, before accepting a request.
+ */
+fun Booking.canRequestCancellation(): Boolean {
+    return paymentStatus?.lowercase() == "paid" &&
+        status.lowercase() == "confirmed" &&
+        ticketUsageStatus.lowercase() == "unused" &&
+        latestChangeRequest?.isPending != true
 }
 
 fun PaymentStatusData.outcome(): PaymentOutcome {
@@ -542,6 +809,9 @@ fun PaymentStatusData.outcome(): PaymentOutcome {
     if (bs == "confirmed" || ps == "paid" || ps == "success" || ps == "settlement") {
         return PaymentOutcome.SUCCESS
     }
+    // The deadline check is authoritative even when the scheduler has not yet
+    // moved the row to expired/cancelled.
+    if (paymentExpired == true) return PaymentOutcome.EXPIRED
     if (ps == "expired" || ps == "expire") return PaymentOutcome.EXPIRED
     if (ps == "failed" || ps == "deny" || ps == "cancel") {
         return if (raw == "cancel") PaymentOutcome.CANCELLED else PaymentOutcome.FAILED
@@ -590,6 +860,8 @@ data class ApiResponse<T>(
     val success: Boolean,
     val message: String = "",
     val data: T? = null,
+    // Top-level pagination block returned by the catalog list endpoints.
+    val meta: CatalogMeta? = null,
     val errors: Map<String, List<String>>? = null
 )
 
@@ -604,4 +876,51 @@ data class Pagination(
     val per_page: Int,
     val total: Int,
     val last_page: Int
+)
+
+// Wishlist / favourites. Item summaries are produced by the backend so the
+// app never has to resolve a saved id against a stale local catalog.
+object WishlistTypes {
+    const val DESTINATION = "destination"
+    const val TOUR_PACKAGE = "tour_package"
+}
+
+data class WishlistItem(
+    val id: Int,
+    val type: String,
+    val name: String,
+    val city: String? = null,
+    val country: String? = null,
+    val image: String? = null,
+    val price: Double? = null,
+    @SerializedName("price_formatted")
+    val priceFormatted: String? = null,
+    val rating: Double? = null,
+    @SerializedName("review_count")
+    val reviewCount: Int = 0,
+    @SerializedName("duration_days")
+    val durationDays: Int? = null
+)
+
+data class WishlistEntry(
+    val id: Int,
+    @SerializedName("item_type")
+    val itemType: String,
+    @SerializedName("item_id")
+    val itemId: Int,
+    val item: WishlistItem? = null,
+    @SerializedName("created_at")
+    val createdAt: String? = null
+)
+
+data class WishlistToggleRequest(
+    @SerializedName("item_type")
+    val itemType: String,
+    @SerializedName("item_id")
+    val itemId: Int
+)
+
+data class WishlistToggleData(
+    @SerializedName("is_wishlisted")
+    val isWishlisted: Boolean
 )

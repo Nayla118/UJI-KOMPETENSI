@@ -1,17 +1,20 @@
 <?php
-require __DIR__ . '/vendor/autoload.php';
-$app = require __DIR__ . '/bootstrap/app.php';
-$app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+
+require __DIR__.'/vendor/autoload.php';
+$app = require __DIR__.'/bootstrap/app.php';
+$app->make(Kernel::class)->bootstrap();
 
 use App\Models\Booking;
 use App\Services\MidtransService;
+use Illuminate\Contracts\Console\Kernel;
 
-$svc = new MidtransService();
+$svc = new MidtransService;
 
 foreach ([30, 29, 12] as $id) {
     $booking = Booking::find($id);
-    if (!$booking) {
+    if (! $booking) {
         echo "booking#{$id} not found\n";
+
         continue;
     }
     echo "== booking#{$id} (local payment_status={$booking->payment_status}) ==\n";
@@ -29,7 +32,7 @@ foreach ([30, 29, 12] as $id) {
                 $raw['settlement_time'] ?? ($raw['transaction_time'] ?? '-'),
                 $local
             );
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             echo "  {$orderId} -> ERROR: {$e->getMessage()}\n";
         }
     }

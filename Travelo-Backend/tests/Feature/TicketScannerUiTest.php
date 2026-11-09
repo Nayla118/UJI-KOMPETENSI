@@ -8,24 +8,24 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 /**
- * The scanner is an operational screen for admins and gate staff only.
+ * The scanner is an operational screen for admins and owners only.
  *
- * Travellers must never be able to load it, and gate staff must be sent to
- * the scanner after login instead of the admin-only dashboard.
+ * Travellers must never be able to load it, and owners must be sent to
+ * the scanner after login instead of the owner-only dashboard.
  */
 class TicketScannerUiTest extends TestCase
 {
     use RefreshDatabase;
 
-    private function makeUser(string $role, string $suffix = ''): User
+    private function makeUser(string $role, string $suffix = '', array $overrides = []): User
     {
-        return User::create([
+        return User::create(array_merge([
             'firebase_uid' => 'uid-scanner-'.$suffix.'-'.uniqid(),
             'name' => 'Scanner User '.$suffix,
             'email' => 'scanner-'.$suffix.'-'.uniqid().'@example.com',
             'role' => $role,
             'password' => bcrypt('synthetic-password'),
-        ]);
+        ], $overrides));
     }
 
     public function test_guest_is_redirected_to_the_admin_login(): void
@@ -45,7 +45,7 @@ class TicketScannerUiTest extends TestCase
             ->assertForbidden();
     }
 
-    public function test_staff_can_open_the_scanner_for_assigned_destinations(): void
+    public function test_owner_can_open_the_scanner_for_assigned_destinations(): void
     {
         $destination = Destination::create([
             'name' => 'Bali',
@@ -53,10 +53,10 @@ class TicketScannerUiTest extends TestCase
             'country' => 'Indonesia',
         ]);
 
-        $staff = $this->makeUser(User::ROLE_STAFF, 'staff');
-        $staff->staffDestinations()->attach($destination->id);
+        $owner = $this->makeUser(User::ROLE_OWNER, 'owner');
+        $owner->destinations()->attach($destination->id);
 
-        $this->actingAs($staff)
+        $this->actingAs($owner)
             ->get('/admin/scanner')
             ->assertOk()
             ->assertSee('Camera scanner')
@@ -72,11 +72,11 @@ class TicketScannerUiTest extends TestCase
             ->assertDontSee('Customers');
     }
 
-    public function test_staff_without_destinations_sees_an_explicit_warning(): void
+    public function test_owner_without_destinations_sees_an_explicit_warning(): void
     {
-        $staff = $this->makeUser(User::ROLE_STAFF, 'unassigned');
+        $owner = $this->makeUser(User::ROLE_OWNER, 'unassigned');
 
-        $this->actingAs($staff)
+        $this->actingAs($owner)
             ->get('/admin/scanner')
             ->assertOk()
             ->assertSee('No destinations assigned');
@@ -92,16 +92,19 @@ class TicketScannerUiTest extends TestCase
             ->assertSee('All destinations');
     }
 
-    public function test_staff_login_lands_on_the_scanner_not_the_admin_dashboard(): void
+    public function test_owner_login_lands_on_the_owner_dashboard_not_the_admin_dashboard(): void
     {
-        $staff = $this->makeUser(User::ROLE_STAFF, 'login');
+        $owner = $this->makeUser(User::ROLE_OWNER, 'login', [
+            'is_active' => true,
+            'password' => bcrypt('synthetic-password'),
+        ]);
 
         $this->post('/admin/login', [
-            'email' => $staff->email,
+            'email' => $owner->email,
             'password' => 'synthetic-password',
-        ])->assertRedirect(route('admin.scanner'));
+        ])->assertRedirect(route('owner.dashboard'));
 
-        $this->assertAuthenticatedAs($staff);
+        $this->assertAuthenticatedAs($owner);
     }
 
     public function test_admin_login_still_lands_on_the_dashboard(): void

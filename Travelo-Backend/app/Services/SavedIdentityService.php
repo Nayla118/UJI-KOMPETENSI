@@ -46,7 +46,7 @@ class SavedIdentityService
         $name = trim((string) $visitor->name);
         $number = trim((string) $visitor->getRawOriginal('identity_number'));
 
-        if ($name === '' || $number === '' || !in_array($visitor->identity_type, BookingVisitor::TYPES, true)) {
+        if ($name === '' || $number === '' || ! in_array($visitor->identity_type, BookingVisitor::TYPES, true)) {
             return null;
         }
 
@@ -57,7 +57,7 @@ class SavedIdentityService
             $sameNumber = strtoupper(trim((string) $identity->getRawOriginal('identity_number')))
                 === strtoupper($number);
 
-            if (!$sameType || !$sameNumber) {
+            if (! $sameType || ! $sameNumber) {
                 // The saved document belongs to the previous identity number.
                 // Keep the booking file for staff review, but do not offer the
                 // account copy for the new identity.
@@ -74,7 +74,7 @@ class SavedIdentityService
             'phone' => $visitor->phone,
         ]);
 
-        if (!$identity->exists) {
+        if (! $identity->exists) {
             $identity->document_status = BookingVisitor::DOC_MISSING;
         }
 
@@ -91,19 +91,19 @@ class SavedIdentityService
     {
         $identity = $this->rememberVisitor($user, $visitor);
 
-        if (!$identity) {
+        if (! $identity) {
             return null;
         }
 
         $source = $visitor->getRawOriginal('document_path');
 
-        if (!$visitor->has_document || !is_string($source) || $source === '') {
+        if (! $visitor->has_document || ! is_string($source) || $source === '') {
             return $identity;
         }
 
         $disk = Storage::disk($this->disk());
 
-        if (!$disk->exists($source)) {
+        if (! $disk->exists($source)) {
             return $identity;
         }
 
@@ -114,7 +114,7 @@ class SavedIdentityService
             $this->extensionForMime($visitor->document_mime)
         );
 
-        if (!$disk->copy($source, $destination)) {
+        if (! $disk->copy($source, $destination)) {
             throw new RuntimeException('Unable to copy the saved identity document.');
         }
 
@@ -164,7 +164,7 @@ class SavedIdentityService
         $disk = Storage::disk($this->disk());
         $source = $identity->getRawOriginal('document_path');
 
-        if (!$identity->has_document || !is_string($source) || $source === '' || !$disk->exists($source)) {
+        if (! $identity->has_document || ! is_string($source) || $source === '' || ! $disk->exists($source)) {
             throw new RuntimeException('The saved identity document is not available.');
         }
 
@@ -175,7 +175,7 @@ class SavedIdentityService
             $this->extensionForMime($identity->document_mime)
         );
 
-        if (!$disk->copy($source, $destination)) {
+        if (! $disk->copy($source, $destination)) {
             throw new RuntimeException('Unable to copy the saved identity document into the booking.');
         }
 

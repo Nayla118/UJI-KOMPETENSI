@@ -38,14 +38,14 @@ class PaymentFlowTest extends TestCase
         parent::setUp();
 
         // MidtransService constructor only reads config; no network here.
-        $this->service = new MidtransService();
+        $this->service = new MidtransService;
 
         // NOTE: users table has no password/remember_token columns
         // (Firebase auth), so the default UserFactory cannot be used.
         $this->user = User::create([
-            'firebase_uid' => 'test-uid-' . uniqid(),
+            'firebase_uid' => 'test-uid-'.uniqid(),
             'name' => 'Test User',
-            'email' => 'test-' . uniqid() . '@example.com',
+            'email' => 'test-'.uniqid().'@example.com',
         ]);
 
         $destination = Destination::create([
@@ -76,7 +76,7 @@ class PaymentFlowTest extends TestCase
     private function notification(array $overrides = []): array
     {
         return array_merge([
-            'order_id' => 'BOOKING-' . $this->booking->id . '-20240101000000-1234',
+            'order_id' => 'BOOKING-'.$this->booking->id.'-20240101000000-1234',
             'transaction_id' => 'txn-abc-123',
             'transaction_status' => 'settlement',
             'payment_type' => 'qris',
@@ -129,8 +129,8 @@ class PaymentFlowTest extends TestCase
                 $this->notificationFor($booking, $payload)
             );
 
-            $this->assertSame('paid', $result['payment_status'], 'payload #' . $i . ' ' . json_encode($payload));
-            $this->assertSame('confirmed', $result['booking_status'], 'payload #' . $i);
+            $this->assertSame('paid', $result['payment_status'], 'payload #'.$i.' '.json_encode($payload));
+            $this->assertSame('confirmed', $result['booking_status'], 'payload #'.$i);
         }
     }
 
@@ -221,7 +221,7 @@ class PaymentFlowTest extends TestCase
         $result = $this->service->syncBookingPaymentStatus(
             $this->booking->fresh(),
             $this->notification([
-                'order_id' => 'BOOKING-' . $this->booking->id . '-20240102000000-9999',
+                'order_id' => 'BOOKING-'.$this->booking->id.'-20240102000000-9999',
                 'transaction_status' => 'pending',
             ])
         );
@@ -287,32 +287,32 @@ class PaymentFlowTest extends TestCase
     {
         $payment = Payment::create([
             'booking_id' => $this->booking->id,
-            'midtrans_order_id' => 'BOOKING-' . $this->booking->id . '-NEW',
-            'order_history' => ['BOOKING-' . $this->booking->id . '-OLD'],
+            'midtrans_order_id' => 'BOOKING-'.$this->booking->id.'-NEW',
+            'order_history' => ['BOOKING-'.$this->booking->id.'-OLD'],
             'payment_status' => 'pending',
             'amount' => 2000000,
         ]);
 
         // Case A: old order settled -> paid wins even though current is pending.
         $stub = $this->stubService([
-            'BOOKING-' . $this->booking->id . '-NEW' => ['status' => 'pending', 'raw' => ['order_id' => 'NEW', 'transaction_status' => 'pending']],
-            'BOOKING-' . $this->booking->id . '-OLD' => ['status' => 'settlement', 'raw' => ['order_id' => 'OLD', 'transaction_status' => 'settlement']],
+            'BOOKING-'.$this->booking->id.'-NEW' => ['status' => 'pending', 'raw' => ['order_id' => 'NEW', 'transaction_status' => 'pending']],
+            'BOOKING-'.$this->booking->id.'-OLD' => ['status' => 'settlement', 'raw' => ['order_id' => 'OLD', 'transaction_status' => 'settlement']],
         ]);
         $data = $stub->verifyBookingAcrossOrders($this->booking->fresh());
         $this->assertSame('settlement', $data['status']);
 
         // Case B: old order expired, current pending -> current wins (no false expired).
         $stub = $this->stubService([
-            'BOOKING-' . $this->booking->id . '-NEW' => ['status' => 'pending', 'raw' => ['order_id' => 'NEW', 'transaction_status' => 'pending']],
-            'BOOKING-' . $this->booking->id . '-OLD' => ['status' => 'expire', 'raw' => ['order_id' => 'OLD', 'transaction_status' => 'expire']],
+            'BOOKING-'.$this->booking->id.'-NEW' => ['status' => 'pending', 'raw' => ['order_id' => 'NEW', 'transaction_status' => 'pending']],
+            'BOOKING-'.$this->booking->id.'-OLD' => ['status' => 'expire', 'raw' => ['order_id' => 'OLD', 'transaction_status' => 'expire']],
         ]);
         $data = $stub->verifyBookingAcrossOrders($this->booking->fresh());
         $this->assertSame('pending', $data['status']);
 
         // Case C: current expired -> expired is the truth for this attempt.
         $stub = $this->stubService([
-            'BOOKING-' . $this->booking->id . '-NEW' => ['status' => 'expire', 'raw' => ['order_id' => 'NEW', 'transaction_status' => 'expire']],
-            'BOOKING-' . $this->booking->id . '-OLD' => ['status' => 'pending', 'raw' => ['order_id' => 'OLD', 'transaction_status' => 'pending']],
+            'BOOKING-'.$this->booking->id.'-NEW' => ['status' => 'expire', 'raw' => ['order_id' => 'NEW', 'transaction_status' => 'expire']],
+            'BOOKING-'.$this->booking->id.'-OLD' => ['status' => 'pending', 'raw' => ['order_id' => 'OLD', 'transaction_status' => 'pending']],
         ]);
         $data = $stub->verifyBookingAcrossOrders($this->booking->fresh());
         $this->assertSame('expire', $data['status']);
@@ -336,7 +336,7 @@ class PaymentFlowTest extends TestCase
     private function notificationFor(Booking $booking, array $overrides): array
     {
         return $this->notification(array_merge(
-            ['order_id' => 'BOOKING-' . $booking->id . '-20240101000000-1234'],
+            ['order_id' => 'BOOKING-'.$booking->id.'-20240101000000-1234'],
             $overrides
         ));
     }
@@ -357,7 +357,7 @@ class PaymentFlowTest extends TestCase
 
             public function verifyPayment(string $orderId): array
             {
-                if (!isset($this->responses[$orderId])) {
+                if (! isset($this->responses[$orderId])) {
                     throw new \Exception('404 Transaction doesn\'t exist');
                 }
 

@@ -127,7 +127,7 @@ class VisitorIdentityService
         $path = $visitor->getRawOriginal('document_path');
         $disk = Storage::disk($this->disk());
 
-        abort_if(!is_string($path) || $path === '' || !$disk->exists($path), 404);
+        abort_if(! is_string($path) || $path === '' || ! $disk->exists($path), 404);
 
         $extension = pathinfo($path, PATHINFO_EXTENSION) ?: 'jpg';
 

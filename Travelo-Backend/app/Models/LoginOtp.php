@@ -2,8 +2,8 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 
 /**
  * One row = one OTP issued for an email login attempt.
@@ -13,7 +13,9 @@ use Illuminate\Database\Eloquent\Builder;
 class LoginOtp extends Model
 {
     public const TTL_MINUTES = 5;
+
     public const MAX_ATTEMPTS = 5;
+
     public const RESEND_COOLDOWN_SECONDS = 60;
 
     protected $fillable = [

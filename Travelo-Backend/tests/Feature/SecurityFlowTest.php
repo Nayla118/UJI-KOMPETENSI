@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Contracts\FirebaseIdentityVerifier;
-use App\Exceptions\InvalidFirebaseTokenException;
 use App\Models\Booking;
 use App\Models\Destination;
 use App\Models\Payment;
@@ -411,22 +410,22 @@ class SecurityFlowTest extends TestCase
         $this->assertSame('confirmed', $booking->booking_status);
     }
 
-    public function test_staff_cannot_reach_admin_management_routes_but_can_reach_gate_endpoints(): void
+    public function test_owner_cannot_reach_admin_management_routes_but_can_reach_gate_endpoints(): void
     {
-        $staff = User::create([
-            'firebase_uid' => 'staff-'.uniqid(),
-            'name' => 'Gate Staff',
-            'email' => 'staff-'.uniqid().'@example.com',
-            'role' => User::ROLE_STAFF,
+        $owner = User::create([
+            'firebase_uid' => 'owner-'.uniqid(),
+            'name' => 'Gate Owner',
+            'email' => 'owner-'.uniqid().'@example.com',
+            'role' => User::ROLE_OWNER,
             'password' => bcrypt('synthetic-password'),
         ]);
 
-        $this->actingAs($staff)->get('/admin')->assertForbidden();
-        $this->actingAs($staff)->get('/admin/users')->assertForbidden();
-        $this->actingAs($staff)->get('/admin/export/users')->assertForbidden();
+        $this->actingAs($owner)->get('/admin')->assertForbidden();
+        $this->actingAs($owner)->get('/admin/users')->assertForbidden();
+        $this->actingAs($owner)->get('/admin/export/users')->assertForbidden();
 
-        // The ticket foundation is intentionally available to gate staff.
-        $this->actingAs($staff)
+        // The ticket foundation is intentionally available to gate owner.
+        $this->actingAs($owner)
             ->postJson('/admin/tickets/redeem', ['token' => 'not-a-valid-token'])
             ->assertStatus(422);
     }
@@ -479,7 +478,7 @@ class SecurityFlowTest extends TestCase
         $name = 'security-probe-'.uniqid().'.txt';
         $privateFile = storage_path('app/private/'.$name);
 
-        if (!is_dir(dirname($privateFile))) {
+        if (! is_dir(dirname($privateFile))) {
             mkdir(dirname($privateFile), 0777, true);
         }
         file_put_contents($privateFile, 'synthetic-private-probe');

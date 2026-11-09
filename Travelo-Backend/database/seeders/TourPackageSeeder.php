@@ -6,192 +6,264 @@ use App\Models\Destination;
 use App\Models\TourPackage;
 use Illuminate\Database\Seeder;
 
+/**
+ * Tour packages untuk 20 destinasi awal Travelo.
+ *
+ * Safe to rerun: existing rows are matched by `title` and never overwritten.
+ * Harga, durasi, dan kapasitas adalah contoh — admin disarankan menyesuaikan
+ * dengan harga dan kapasitas aktual mereka.
+ */
 class TourPackageSeeder extends Seeder
 {
     public function run(): void
     {
-        $bali = Destination::where('name', 'Bali')->first();
-        $yogyakarta = Destination::where('name', 'Yogyakarta')->first();
-        $lombok = Destination::where('name', 'Lombok')->first();
-        $rajaAmpat = Destination::where('name', 'Raja Ampat')->first();
-        $labuanBajo = Destination::where('name', 'Labuan Bajo')->first();
-        $bandung = Destination::where('name', 'Bandung')->first();
-        $komodo = Destination::where('name', 'Komodo')->first();
-        $bromo = Destination::where('name', 'Bromo')->first();
+        $destinations = Destination::all()->keyBy('name');
 
         $tourPackages = [
-            // Bali packages
+            // ---------- Jawa Timur ----------
             [
-                'destination_id' => $bali->id,
-                'title' => 'Bali Beach & Culture Tour',
-                'description' => 'Explore the beautiful beaches and rich culture of Bali. Visit ancient temples, rice terraces, and enjoy pristine beaches.',
-                'price' => 1500000,
-                'duration_days' => 5,
+                'destination' => 'Gunung Bromo',
+                'title' => 'Bromo Sunrise Tour 1 Hari',
+                'description' => 'Witness the breathtaking sunrise from Mount Penanjakan overlooking Mount Bromo caldera. Trek across the sea of sand.',
+                'price' => 800000,
+                'duration_days' => 1,
                 'max_people' => 10,
-                'image' => 'https://images.unsplash.com/photo-1537996194471-e657df975ab4?w=800',
-                'rating' => 4.8,
+                'image' => 'https://images.unsplash.com/photo-1588668214407-6ea9a6d8c272?w=800',
             ],
             [
-                'destination_id' => $bali->id,
-                'title' => 'Bali Adventure Package',
-                'description' => 'Experience thrilling adventures in Bali including white water rafting, ATV riding, and volcano trekking.',
-                'price' => 2500000,
-                'duration_days' => 4,
-                'max_people' => 8,
-                'image' => 'https://images.unsplash.com/photo-1555400038-63f5ba517a47?w=800',
-                'rating' => 4.7,
-            ],
-            [
-                'destination_id' => $bali->id,
-                'title' => 'Bali Luxury Retreat',
-                'description' => 'Indulge in a luxurious escape with private villa, spa treatments, and exclusive dining experiences.',
-                'price' => 8500000,
-                'duration_days' => 6,
-                'max_people' => 4,
-                'image' => 'https://images.unsplash.com/photo-1573790387438-4da905039392?w=800',
-                'rating' => 4.9,
-            ],
-            // Yogyakarta packages
-            [
-                'destination_id' => $yogyakarta->id,
-                'title' => 'Javanese Heritage Tour',
-                'description' => 'Discover the ancient wonders of Java including Borobudur, Prambanan, and the royal palaces.',
-                'price' => 1200000,
-                'duration_days' => 3,
-                'max_people' => 12,
-                'image' => 'https://images.unsplash.com/photo-1569060716907-60ed066d8c81?w=800',
-                'rating' => 4.6,
-            ],
-            [
-                'destination_id' => $yogyakarta->id,
-                'title' => 'Yogyakarta Culinary Adventure',
-                'description' => 'Explore the best of Javanese cuisine with cooking classes, street food tours, and traditional dining.',
+                'destination' => 'Gunung Bromo',
+                'title' => 'Bromo & Ijen Expedition 3 Hari 2 Malam',
+                'description' => 'A complete East Java adventure combining Mount Bromo sunrise with the ethereal blue fire of Kawah Ijen crater.',
                 'price' => 1800000,
-                'duration_days' => 4,
-                'max_people' => 8,
-                'image' => 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800',
-                'rating' => 4.5,
-            ],
-            // Lombok packages
-            [
-                'destination_id' => $lombok->id,
-                'title' => 'Lombok Island Hopping',
-                'description' => 'Visit the stunning Gili Islands with snorkeling, diving, and beach relaxation.',
-                'price' => 2000000,
-                'duration_days' => 4,
-                'max_people' => 10,
-                'image' => 'https://images.unsplash.com/photo-1518548419970-58e3b4079ab2?w=800',
-                'rating' => 4.7,
-            ],
-            [
-                'destination_id' => $lombok->id,
-                'title' => 'Mount Rinjani Trekking',
-                'description' => 'Challenge yourself with a trek to the summit of Mount Rinjani, one of Indonesia\'s most beautiful volcanoes.',
-                'price' => 3500000,
                 'duration_days' => 3,
-                'max_people' => 6,
-                'image' => 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=800',
-                'rating' => 4.8,
-            ],
-            // Raja Ampat packages
-            [
-                'destination_id' => $rajaAmpat->id,
-                'title' => 'Raja Ampat Diving Paradise',
-                'description' => 'Explore the world\'s most biodiverse marine area with world-class diving and snorkeling experiences.',
-                'price' => 5500000,
-                'duration_days' => 6,
                 'max_people' => 8,
-                'image' => 'https://images.unsplash.com/photo-1516690561799-46d8f74f9abf?w=800',
-                'rating' => 4.9,
+                'image' => 'https://images.unsplash.com/photo-1588668214407-6ea9a6d8c272?w=800',
             ],
             [
-                'destination_id' => $rajaAmpat->id,
-                'title' => 'Raja Ampat Expedition',
-                'description' => 'A comprehensive expedition covering the best of Raja Ampat\'s islands, beaches, and marine life.',
-                'price' => 7000000,
-                'duration_days' => 8,
-                'max_people' => 6,
-                'image' => 'https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=800',
-                'rating' => 4.9,
-            ],
-            // Labuan Bajo packages
-            [
-                'destination_id' => $labuanBajo->id,
-                'title' => 'Komodo Island Adventure',
-                'description' => 'Visit the legendary Komodo National Park, see Komodo dragons, and explore stunning islands.',
-                'price' => 2200000,
-                'duration_days' => 3,
-                'max_people' => 12,
-                'image' => 'https://images.unsplash.com/photo-1516483638261-f4dbaf036963?w=800',
-                'rating' => 4.7,
-            ],
-            [
-                'destination_id' => $labuanBajo->id,
-                'title' => 'Flores Island Overland',
-                'description' => 'Journey across Flores island visiting traditional villages, colorful lakes, and ancient forests.',
-                'price' => 4500000,
-                'duration_days' => 7,
+                'destination' => 'Kawah Ijen',
+                'title' => 'Kawah Ijen Blue Fire Trek 2 Hari 1 Malam',
+                'description' => 'A guided night trek to see the rare blue flames and the turquoise crater lake at sunrise.',
+                'price' => 650000,
+                'duration_days' => 2,
                 'max_people' => 8,
-                'image' => 'https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=800',
-                'rating' => 4.6,
+                'image' => 'https://images.unsplash.com/photo-1501785888041-af3ef285b470?w=800',
             ],
-            // Bandung packages
             [
-                'destination_id' => $bandung->id,
-                'title' => 'Bandung Family Getaway',
-                'description' => 'Perfect for families with visits to amusement parks, tea plantations, and delicious local cuisine.',
-                'price' => 900000,
+                'destination' => 'Kota Batu',
+                'title' => 'Batu Family Trip 2 Hari 1 Malam',
+                'description' => 'Cool mountain city with recreation parks, museums, apple orchards, and scenic dining. Perfect for family holidays.',
+                'price' => 950000,
                 'duration_days' => 2,
                 'max_people' => 6,
                 'image' => 'https://images.unsplash.com/photo-1565967511849-76a60a516170?w=800',
-                'rating' => 4.5,
             ],
-            // Komodo packages
             [
-                'destination_id' => $komodo->id,
-                'title' => 'Komodo Dragon Safari',
-                'description' => 'Get up close with the legendary Komodo dragons on a guided safari. Trek through rugged terrain and visit ranger stations.',
-                'price' => 3000000,
-                'duration_days' => 4,
+                'destination' => 'Pantai Pulau Merah',
+                'title' => 'Banyuwangi Explore (Ijen + Pulau Merah) 3 Hari 2 Malam',
+                'description' => 'Combine Kawah Ijen blue fire with surfing lessons and sunset at Pantai Pulau Merah.',
+                'price' => 1600000,
+                'duration_days' => 3,
                 'max_people' => 8,
-                'image' => 'https://images.unsplash.com/photo-1570789210967-2cac24f169ab?w=800',
-                'rating' => 4.8,
+                'image' => 'https://images.unsplash.com/photo-1507525429053-4e973242c517?w=800',
+            ],
+            // ---------- Jawa Tengah & DIY ----------
+            [
+                'destination' => 'Candi Borobudur',
+                'title' => 'Borobudur Heritage 1 Hari',
+                'description' => '9th-century Buddhist monument and UNESCO World Heritage site. Enjoy the morning atmosphere around the temple.',
+                'price' => 450000,
+                'duration_days' => 1,
+                'max_people' => 12,
+                'image' => 'https://images.unsplash.com/photo-1569060716907-60ed066d8c81?w=800',
             ],
             [
-                'destination_id' => $komodo->id,
-                'title' => 'Pink Beach & Snorkeling',
-                'description' => 'Visit the famous Pink Beach with its unique rose-colored sand. Snorkel in crystal-clear waters teeming with marine life.',
+                'destination' => 'Candi Prambanan',
+                'title' => 'Prambanan + Keraton Sehari Penuh',
+                'description' => 'Largest Hindu temple complex in Indonesia with Ramayana ballet performance at sunset.',
+                'price' => 550000,
+                'duration_days' => 1,
+                'max_people' => 12,
+                'image' => 'https://images.unsplash.com/photo-1572398878314-6d8346b388b8?w=800',
+            ],
+            [
+                'destination' => 'Malioboro & Keraton Yogyakarta',
+                'title' => 'Jogja City Tour 1 Hari',
+                'description' => 'Iconic shopping street, street food, and the cultural heart of Java at the Keraton.',
+                'price' => 350000,
+                'duration_days' => 1,
+                'max_people' => 12,
+                'image' => 'https://images.unsplash.com/photo-1533185024229-1e8bc1a03e7e?w=800',
+            ],
+            [
+                'destination' => 'Malioboro & Keraton Yogyakarta',
+                'title' => 'Jogja Budaya 2 Hari 1 Malam',
+                'description' => 'Two days of Yogyakarta culture: Malioboro, Keraton, Taman Sari, gudeg, and batik.',
+                'price' => 900000,
+                'duration_days' => 2,
+                'max_people' => 8,
+                'image' => 'https://images.unsplash.com/photo-1533185024229-1e8bc1a03e7e?w=800',
+            ],
+            // ---------- Jawa Barat & Jakarta ----------
+            [
+                'destination' => 'Kawah Putih',
+                'title' => 'Ciwidey Day Trip dari Bandung',
+                'description' => 'Volcanic crater lake with white-green water and cool highland air. Popular for photography.',
+                'price' => 400000,
+                'duration_days' => 1,
+                'max_people' => 10,
+                'image' => 'https://images.unsplash.com/photo-1533800212231-3e58a05e23bf?w=800',
+            ],
+            [
+                'destination' => 'Jalan Braga & Kuliner Bandung',
+                'title' => 'Bandung Food & City Tour 1 Hari',
+                'description' => 'Colonial-era architecture, cafes, shops, and Bandung culinary specialties like batagor and surabi.',
+                'price' => 500000,
+                'duration_days' => 1,
+                'max_people' => 10,
+                'image' => 'https://images.unsplash.com/photo-1565967511849-76a60a516170?w=800',
+            ],
+            [
+                'destination' => 'Kota Tua Jakarta',
+                'title' => 'Jakarta Heritage Walk Setengah Hari',
+                'description' => 'Colonial historical area with museums, old buildings, and ontel bicycle rentals.',
+                'price' => 300000,
+                'duration_days' => 1,
+                'max_people' => 12,
+                'image' => 'https://images.unsplash.com/photo-1515023115689-589c33041697?w=800',
+            ],
+            // ---------- Bali & Nusa Tenggara ----------
+            [
+                'destination' => 'Tanah Lot',
+                'title' => 'Bali Sunset Tour Setengah Hari',
+                'description' => 'Temple on a rock by the sea famous for its sunset views, waves crashing against the rock, and traditional dance performances.',
+                'price' => 350000,
+                'duration_days' => 1,
+                'max_people' => 12,
+                'image' => 'https://images.unsplash.com/photo-1537996194471-e657df975ab4?w=800',
+            ],
+            [
+                'destination' => 'Ubud & Tegallalang',
+                'title' => 'Ubud Culture & Nature 1 Hari',
+                'description' => 'Rice terraces, Monkey Forest, galleries, and traditional Balinese dance in the artistic heart of Bali.',
+                'price' => 600000,
+                'duration_days' => 1,
+                'max_people' => 8,
+                'image' => 'https://images.unsplash.com/photo-1544644181-1484b3fdfc62?w=800',
+            ],
+            [
+                'destination' => 'Nusa Penida',
+                'title' => 'Nusa Penida Day Trip',
+                'description' => 'Dramatic limestone cliffs, hidden beaches, and snorkeling to see manta rays. Access by speedboat from Bali.',
+                'price' => 700000,
+                'duration_days' => 1,
+                'max_people' => 8,
+                'image' => 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=800',
+            ],
+            [
+                'destination' => 'Nusa Penida',
+                'title' => 'Nusa Penida Escape 2 Hari 1 Malam',
+                'description' => 'Two days exploring Kelingking Beach, Angel\'s Billabong, Broken Beach, and manta snorkeling.',
+                'price' => 1400000,
+                'duration_days' => 2,
+                'max_people' => 6,
+                'image' => 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=800',
+            ],
+            [
+                'destination' => 'Gili Trawangan',
+                'title' => 'Gili Escape 3 Hari 2 Malam',
+                'description' => 'Small island without motor vehicles surrounded by white beaches and clear water. Snorkeling with turtles and sunset on the west side.',
+                'price' => 1600000,
+                'duration_days' => 3,
+                'max_people' => 6,
+                'image' => 'https://images.unsplash.com/photo-1533431601175-a3a0118a78bc?w=800',
+            ],
+            [
+                'destination' => 'Gunung Rinjani',
+                'title' => 'Rinjani Trekking 3 Hari 2 Malam',
+                'description' => 'Second highest volcano in Indonesia with Segara Anak crater lake. Requires physical preparation and licensed guide/porter.',
                 'price' => 2500000,
                 'duration_days' => 3,
-                'max_people' => 10,
-                'image' => 'https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=800',
-                'rating' => 4.7,
-            ],
-            // Bromo packages
-            [
-                'destination_id' => $bromo->id,
-                'title' => 'Bromo Sunrise Tour',
-                'description' => 'Witness the breathtaking sunrise from Mount Penanjakan overlooking Mount Bromo caldera. Trek across the sea of sand.',
-                'price' => 800000,
-                'duration_days' => 2,
-                'max_people' => 10,
-                'image' => 'https://images.unsplash.com/photo-1588668214407-6ea9a6d8c272?w=800',
-                'rating' => 4.7,
+                'max_people' => 6,
+                'image' => 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=800',
             ],
             [
-                'destination_id' => $bromo->id,
-                'title' => 'Bromo & Ijen Expedition',
-                'description' => 'A complete East Java adventure combining Mount Bromo sunrise with the ethereal blue fire of Kawah Ijen crater.',
+                'destination' => 'Labuan Bajo & Pulau Komodo',
+                'title' => 'Open Trip Komodo 3 Hari 2 Malam',
+                'description' => 'Gateway to Komodo National Park. Island hopping, light trekking on Padar Island, snorkeling, and seeing Komodo dragons with rangers.',
                 'price' => 1800000,
+                'duration_days' => 3,
+                'max_people' => 10,
+                'image' => 'https://images.unsplash.com/photo-1516483638261-f4dbaf036963?w=800',
+            ],
+            [
+                'destination' => 'Labuan Bajo & Pulau Komodo',
+                'title' => 'Komodo Day Trip',
+                'description' => 'One day trip to see Komodo dragons and snorkel in crystal clear waters.',
+                'price' => 800000,
+                'duration_days' => 1,
+                'max_people' => 12,
+                'image' => 'https://images.unsplash.com/photo-1516483638261-f4dbaf036963?w=800',
+            ],
+            // ---------- Sumatera, Sulawesi, Papua ----------
+            [
+                'destination' => 'Raja Ampat',
+                'title' => 'Raja Ampat Island Hopping 4 Hari 3 Malam',
+                'description' => 'Archipelago of limestone islands with lagoons and coral reefs among the richest marine biodiversity in the world. Premium segment.',
+                'price' => 7500000,
                 'duration_days' => 4,
                 'max_people' => 8,
-                'image' => 'https://images.unsplash.com/photo-1588668214407-6ea9a6d8c272?w=800',
-                'rating' => 4.8,
+                'image' => 'https://images.unsplash.com/photo-1516690561799-46d8f74f9abf?w=800',
+            ],
+            [
+                'destination' => 'Danau Toba',
+                'title' => 'Toba Cultural Trip 3 Hari 2 Malam',
+                'description' => 'Largest volcanic lake in Southeast Asia with Samosir Island in the middle. Batak cultural villages and lakeside accommodation.',
+                'price' => 1200000,
+                'duration_days' => 3,
+                'max_people' => 8,
+                'image' => 'https://images.unsplash.com/photo-1544716278-ca5e3f4abdac?w=800',
+            ],
+            [
+                'destination' => 'Taman Laut Bunaken',
+                'title' => 'Bunaken Snorkeling Day Trip',
+                'description' => 'National marine park with steep coral walls rich in marine life, popular for diving and snorkeling.',
+                'price' => 500000,
+                'duration_days' => 1,
+                'max_people' => 10,
+                'image' => 'https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=800',
+            ],
+            [
+                'destination' => 'Taman Laut Bunaken',
+                'title' => 'Manado Diving 3 Hari',
+                'description' => 'Three days of diving and snorkeling in Bunaken National Marine Park with Manado cuisine.',
+                'price' => 1500000,
+                'duration_days' => 3,
+                'max_people' => 8,
+                'image' => 'https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=800',
+            ],
+            [
+                'destination' => 'Tana Toraja',
+                'title' => 'Toraja Heritage 3 Hari 2 Malam',
+                'description' => 'Highlands with tongkonan traditional houses, unique ceremonies, and green hill scenery. Respect local customs during ceremonies.',
+                'price' => 1600000,
+                'duration_days' => 3,
+                'max_people' => 6,
+                'image' => 'https://images.unsplash.com/photo-1536715336237-68a47079a21e?w=800',
             ],
         ];
 
-        foreach ($tourPackages as $package) {
-            TourPackage::create($package);
+        foreach ($tourPackages as $attributes) {
+            $destination = $destinations->get($attributes['destination']);
+
+            if ($destination === null) {
+                continue;
+            }
+
+            $data = $attributes;
+            unset($data['destination']);
+            $data['destination_id'] = $destination->id;
+
+            TourPackage::firstOrCreate(['title' => $data['title']], $data);
         }
     }
 }

@@ -13,7 +13,7 @@
                 <span class="text-slate-700 font-medium">Edit Package</span>
             </div>
             <h1 class="text-3xl font-bold text-slate-900">Edit Tour Package</h1>
-            <p class="text-slate-500 mt-1">Update tour package details and pricing</p>
+            <p class="text-slate-500 mt-1">Update tour package details, itinerary and media</p>
         </div>
         <div class="flex items-center gap-3">
             <a href="{{ route('admin.tour-packages.index') }}" class="inline-flex items-center gap-2 px-5 py-2.5 bg-white text-slate-700 font-semibold rounded-xl border border-slate-200 hover:bg-slate-50 transition-all shadow-sm">
@@ -60,133 +60,7 @@
         @method('PUT')
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <!-- Main Content (2 columns) -->
-            <div class="lg:col-span-2 space-y-6">
-                <!-- Package Information -->
-                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                    <div class="bg-blush/40 px-6 py-4 border-b border-slate-100">
-                        <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
-                            <span class="material-symbols-outlined text-primary">info</span>
-                            Package Information
-                        </h2>
-                        <p class="text-sm text-slate-500 mt-1">Basic details about your tour package</p>
-                    </div>
-                    <div class="p-6 space-y-6">
-                        <div class="space-y-2">
-                            <label for="title" class="block text-sm font-semibold text-slate-700 flex items-center gap-2">
-                                <span class="material-symbols-outlined text-primary text-base">badge</span>
-                                Package Title
-                                <span class="text-red-500">*</span>
-                            </label>
-                            <input
-                                type="text"
-                                id="title"
-                                name="title"
-                                value="{{ old('title', $tourPackage->title) }}"
-                                class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none text-slate-700 bg-white"
-                                placeholder="e.g. Ultimate Bali Adventure Tour"
-                                required
-                            >
-                            <p class="text-xs text-slate-500">Create a compelling title that attracts travelers</p>
-                        </div>
-
-                        <div class="space-y-2">
-                            <label for="description" class="block text-sm font-semibold text-slate-700 flex items-center gap-2">
-                                <span class="material-symbols-outlined text-primary text-base">description</span>
-                                Description
-                            </label>
-                            <textarea
-                                id="description"
-                                name="description"
-                                rows="6"
-                                class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none text-slate-700 bg-white resize-none"
-                                placeholder="Describe what makes this tour special..."
-                            >{{ old('description', $tourPackage->description) }}</textarea>
-                            <p class="text-xs text-slate-500">Include highlights, itinerary, and what's included</p>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Pricing & Details -->
-                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                    <div class="bg-blush/40 px-6 py-4 border-b border-slate-100">
-                        <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
-                            <span class="material-symbols-outlined text-primary">tune</span>
-                            Pricing & Details
-                        </h2>
-                        <p class="text-sm text-slate-500 mt-1">Set pricing and package specifications</p>
-                    </div>
-                    <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div class="space-y-2">
-                            <label for="price" class="flex text-sm font-semibold text-slate-700 items-center gap-2">
-                                <span class="material-symbols-outlined text-primary text-base">attach_money</span>
-                                Price (IDR)
-                                <span class="text-red-500">*</span>
-                            </label>
-                            <div class="relative">
-                                <span class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-semibold">Rp</span>
-                                <input
-                                    type="number"
-                                    id="price"
-                                    name="price"
-                                    value="{{ old('price', $tourPackage->price) }}"
-                                    class="w-full pl-12 pr-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none text-slate-700 bg-white"
-                                    placeholder="0"
-                                    min="0"
-                                    step="0.01"
-                                    required
-                                >
-                            </div>
-                        </div>
-
-                        <div class="space-y-2">
-                            <label for="duration_days" class="flex text-sm font-semibold text-slate-700 items-center gap-2">
-                                <span class="material-symbols-outlined text-primary text-base">calendar_month</span>
-                                Duration (Days)
-                                <span class="text-red-500">*</span>
-                            </label>
-                            <input
-                                type="number"
-                                id="duration_days"
-                                name="duration_days"
-                                value="{{ old('duration_days', $tourPackage->duration_days) }}"
-                                class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none text-slate-700 bg-white"
-                                placeholder="5"
-                                min="1"
-                                required
-                            >
-                        </div>
-
-                        <div class="space-y-2">
-                            <label for="max_people" class="flex text-sm font-semibold text-slate-700 items-center gap-2">
-                                <span class="material-symbols-outlined text-primary text-base">people</span>
-                                Max People
-                                <span class="text-red-500">*</span>
-                            </label>
-                            <input
-                                type="number"
-                                id="max_people"
-                                name="max_people"
-                                value="{{ old('max_people', $tourPackage->max_people) }}"
-                                class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none text-slate-700 bg-white"
-                                placeholder="10"
-                                min="1"
-                                required
-                            >
-                        </div>
-
-                        <div class="space-y-2">
-                            <span class="flex text-sm font-semibold text-slate-700 items-center gap-2">
-                                <span class="material-symbols-outlined text-primary text-base">star</span>
-                                Rating
-                            </span>
-                            <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                                Comes from published verified reviews of the destination.
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+            @include('admin.tour-packages.partials.content-fields', ['tourPackage' => $tourPackage])
 
             <!-- Sidebar (1 column) -->
             <div class="space-y-6">
@@ -214,7 +88,7 @@
                             >
                                 <option value="">Choose a destination...</option>
                                 @foreach($destinations as $destination)
-                                <option value="{{ $destination->id }}" {{ $destination->id == $tourPackage->destination_id ? 'selected' : '' }}>
+                                <option value="{{ $destination->id }}" {{ old('destination_id', $tourPackage->destination_id) == $destination->id ? 'selected' : '' }}>
                                     {{ $destination->name }} - {{ $destination->city }}, {{ $destination->country }}
                                 </option>
                                 @endforeach
@@ -228,17 +102,12 @@
                     <div class="bg-blush/40 px-6 py-4 border-b border-slate-100">
                         <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
                             <span class="material-symbols-outlined text-primary">image</span>
-                            Package Image
+                            Cover Image
                         </h2>
                         <p class="text-sm text-slate-500 mt-1">Showcase your tour</p>
                     </div>
                     <div class="p-6 space-y-4">
                         <div class="space-y-2">
-                            <label class="flex text-sm font-semibold text-slate-700 items-center gap-2">
-                                <span class="material-symbols-outlined text-primary text-base">photo_library</span>
-                                Cover Photo
-                            </label>
-
                             <div class="relative group overflow-hidden rounded-xl mb-4" id="image-preview-container">
                                 @if($tourPackage->image)
                                 <x-image-with-fallback
@@ -252,20 +121,14 @@
                                     <span class="material-symbols-outlined text-slate-300 text-5xl">image</span>
                                 </div>
                                 @endif
-                                <div class="absolute inset-0 bg-black/45 opacity-0 group-hover:opacity-100 transition-all duration-300 flex items-end justify-between p-4">
-                                    <span class="text-white font-semibold text-sm">{{ $tourPackage->title }}</span>
-                                    <button type="button" onclick="document.getElementById('image-upload').click()" class="text-white hover:text-primary transition-colors">
-                                        <span class="material-symbols-outlined">edit</span>
-                                    </button>
-                                </div>
                             </div>
 
-                            <div id="upload-area" class="relative border-2 border-dashed border-slate-300 rounded-xl p-6 text-center hover:border-primary/50 transition-colors cursor-pointer bg-slate-50/50 {{ $tourPackage->image ? '' : '' }}" onclick="document.getElementById('image-upload').click()">
+                            <div id="upload-area" class="relative border-2 border-dashed border-slate-300 rounded-xl p-6 text-center hover:border-primary/50 transition-colors cursor-pointer bg-slate-50/50" onclick="document.getElementById('image-upload').click()">
                                 <input
                                     type="file"
                                     id="image-upload"
                                     name="image"
-                                    accept="image/*"
+                                    accept="image/jpeg,image/png,image/webp,image/gif"
                                     class="hidden"
                                     onchange="previewImage(this)"
                                 >
@@ -275,9 +138,9 @@
                                     </div>
                                     <div>
                                         <p class="text-sm font-semibold text-slate-700" id="upload-text">
-                                            {{ $tourPackage->image ? 'Click to change image' : 'Click to upload image' }}
+                                            {{ $tourPackage->image ? 'Click to change cover' : 'Click to upload cover' }}
                                         </p>
-                                        <p class="text-xs text-slate-500 mt-1">PNG, JPG, GIF up to 2MB</p>
+                                        <p class="text-xs text-slate-500 mt-1">JPG, PNG, WEBP or GIF up to 4MB</p>
                                     </div>
                                 </div>
                             </div>
@@ -286,14 +149,14 @@
                                 <div class="flex items-center gap-2">
                                     <span class="material-symbols-outlined" id="status-icon">{{ $tourPackage->image ? 'check_circle' : 'image' }}</span>
                                     <span class="text-sm" id="status-text" style="color: {{ $tourPackage->image ? '#4F7D66' : '#6E5A68' }}">
-                                        {{ $tourPackage->image ? 'Current image will be kept' : 'No image selected' }}
+                                        {{ $tourPackage->image ? 'Current cover will be kept' : 'No cover selected' }}
                                     </span>
                                 </div>
                                 @if($tourPackage->image)
-                                <button type="button" onclick="removeImage()" class="inline-flex items-center gap-1 px-3 py-1.5 bg-red-50 text-red-600 font-medium rounded-lg hover:bg-red-100 transition-all text-xs">
-                                    <span class="material-symbols-outlined text-sm">delete</span>
-                                    Remove
-                                </button>
+                                <label class="inline-flex items-center gap-1 px-3 py-1.5 bg-red-50 text-red-600 font-medium rounded-lg hover:bg-red-100 transition-all text-xs cursor-pointer">
+                                    <input type="checkbox" name="remove_cover" value="1" class="rounded border-red-300">
+                                    Remove cover
+                                </label>
                                 @endif
                             </div>
 
@@ -306,6 +169,8 @@
                         </div>
                     </div>
                 </div>
+
+                @include('admin.tour-packages.partials.gallery-upload', ['tourPackage' => $tourPackage])
 
                 <!-- Package Stats -->
                 <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
@@ -376,7 +241,7 @@
                         <div>
                             <p class="font-bold text-slate-900">Pro Tip</p>
                             <p class="text-sm text-slate-600 mt-1">
-                                High-quality images can increase bookings by up to 40%. Make sure your cover photo showcases the best experience!
+                                A complete itinerary and a real photo gallery help travellers understand exactly what they are buying.
                             </p>
                         </div>
                     </div>
@@ -402,7 +267,6 @@
     </form>
 </div>
 
-@push('scripts')
 <script>
     function previewImage(input) {
         if (input.files && input.files[0]) {
@@ -411,70 +275,28 @@
 
             reader.onload = function(e) {
                 const container = document.getElementById('image-preview-container');
-                
-                // Create new image preview
-                const newHTML = `
+
+                container.innerHTML = `
                     <img src="${e.target.result}" class="w-full h-48 object-cover" alt="New Preview">
-                    <div class="absolute inset-0 bg-black/45 opacity-0 group-hover:opacity-100 transition-all duration-300 flex items-end justify-between p-4">
-                        <span class="text-white font-semibold text-sm">New Image Preview</span>
-                        <button type="button" onclick="document.getElementById('image-upload').click()" class="text-white hover:text-primary transition-colors">
-                            <span class="material-symbols-outlined">edit</span>
-                        </button>
-                    </div>
                 `;
-                container.innerHTML = newHTML;
-                
-                // Update status message
+
                 const statusText = document.getElementById('status-text');
                 const statusIcon = document.getElementById('status-icon');
                 if (statusText) {
-                    statusText.textContent = 'New image will replace the current one';
+                    statusText.textContent = 'New cover will replace the current one';
                     statusText.style.color = '#4F7D66';
                 }
                 if (statusIcon) {
                     statusIcon.textContent = 'check_circle';
                     statusIcon.style.color = '#4F7D66';
                 }
-                
-                // Update upload text
-                document.getElementById('upload-text').textContent = 'Click to change image';
+
+                document.getElementById('upload-text').textContent = 'Click to change cover';
             }
 
             reader.readAsDataURL(file);
         }
     }
-
-    function removeImage() {
-        const imageUpload = document.getElementById('image-upload');
-        const container = document.getElementById('image-preview-container');
-        const statusText = document.getElementById('status-text');
-        const statusIcon = document.getElementById('status-icon');
-
-        if (imageUpload) {
-            imageUpload.value = '';
-        }
-
-        // Reset to placeholder
-        const newHTML = `
-            <div class="w-full h-48 flex items-center justify-center bg-slate-100">
-                <span class="material-symbols-outlined text-slate-300 text-5xl">image</span>
-            </div>
-        `;
-        container.innerHTML = newHTML;
-        
-        // Update status message
-        if (statusText) {
-            statusText.textContent = 'Image will be removed';
-            statusText.style.color = '#B03A4E';
-        }
-        if (statusIcon) {
-            statusIcon.textContent = 'delete';
-            statusIcon.style.color = '#B03A4E';
-        }
-        
-        // Update upload text
-        document.getElementById('upload-text').textContent = 'Click to upload image';
-    }
 </script>
-@endpush
+@include('admin.tour-packages.partials.content-scripts')
 @endsection

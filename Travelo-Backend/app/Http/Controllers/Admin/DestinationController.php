@@ -7,6 +7,7 @@ use App\Models\Destination;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class DestinationController extends Controller
@@ -60,6 +61,7 @@ class DestinationController extends Controller
             'name' => 'required|string|max:255',
             'city' => 'required|string|max:255',
             'country' => 'required|string|max:255',
+            'category' => ['nullable', 'string', Rule::in(Destination::CATEGORIES)],
             'description' => 'nullable|string',
             'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048',
         ]);
@@ -91,6 +93,7 @@ class DestinationController extends Controller
             'name' => 'required|string|max:255',
             'city' => 'required|string|max:255',
             'country' => 'required|string|max:255',
+            'category' => ['nullable', 'string', Rule::in(Destination::CATEGORIES)],
             'description' => 'nullable|string',
             'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048',
         ]);
@@ -145,7 +148,7 @@ class DestinationController extends Controller
     {
         $request->validate([
             'ids' => 'required|array',
-            'ids.*' => 'exists:destinations,id'
+            'ids.*' => 'exists:destinations,id',
         ]);
 
         $ids = $request->input('ids', []);

@@ -25,7 +25,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        if (!Schema::hasTable('booking_visitors')) {
+        if (! Schema::hasTable('booking_visitors')) {
             Schema::create('booking_visitors', function (Blueprint $table) {
                 $table->id();
                 $table->foreignId('booking_id')->constrained()->cascadeOnDelete();
@@ -59,22 +59,22 @@ return new class extends Migration
         }
 
         Schema::table('bookings', function (Blueprint $table) {
-            if (!Schema::hasColumn('bookings', 'ticket_status')) {
+            if (! Schema::hasColumn('bookings', 'ticket_status')) {
                 $table->string('ticket_status', 20)->default('unused');
             }
-            if (!Schema::hasColumn('bookings', 'ticket_used_at')) {
+            if (! Schema::hasColumn('bookings', 'ticket_used_at')) {
                 $table->timestamp('ticket_used_at')->nullable();
             }
-            if (!Schema::hasColumn('bookings', 'ticket_used_by')) {
+            if (! Schema::hasColumn('bookings', 'ticket_used_by')) {
                 $table->unsignedBigInteger('ticket_used_by')->nullable();
             }
-            if (!Schema::hasColumn('bookings', 'ticket_version')) {
+            if (! Schema::hasColumn('bookings', 'ticket_version')) {
                 $table->unsignedInteger('ticket_version')->default(1);
             }
-            if (!Schema::hasColumn('bookings', 'privacy_consent_at')) {
+            if (! Schema::hasColumn('bookings', 'privacy_consent_at')) {
                 $table->timestamp('privacy_consent_at')->nullable();
             }
-            if (!Schema::hasColumn('bookings', 'privacy_consent_version')) {
+            if (! Schema::hasColumn('bookings', 'privacy_consent_version')) {
                 $table->string('privacy_consent_version', 20)->nullable();
             }
         });
@@ -83,7 +83,7 @@ return new class extends Migration
             $table->index('ticket_status');
         });
 
-        if (!Schema::hasColumn('users', 'role')) {
+        if (! Schema::hasColumn('users', 'role')) {
             Schema::table('users', function (Blueprint $table) {
                 // traveller | admin | staff
                 $table->string('role', 20)->default('traveller');
@@ -98,7 +98,7 @@ return new class extends Migration
             ->where('role', 'traveller')
             ->update(['role' => 'admin']);
 
-        if (!Schema::hasTable('staff_destinations')) {
+        if (! Schema::hasTable('staff_destinations')) {
             Schema::create('staff_destinations', function (Blueprint $table) {
                 $table->foreignId('user_id')->constrained()->cascadeOnDelete();
                 $table->foreignId('destination_id')->constrained()->cascadeOnDelete();

@@ -2,12 +2,18 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Exceptions\BookingUnavailableException;
+use App\Exceptions\PromoValidationException;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\MyReviewResource;
 use App\Models\Booking;
+use App\Models\BookingChangeRequest;
 use App\Models\BookingVisitor;
 use App\Models\TourPackage;
+use App\Services\AvailabilityService;
 use App\Services\MidtransService;
+use App\Services\PromoService;
+use App\Services\RefundPolicyService;
 use App\Services\ReviewService;
 use App\Services\SavedIdentityService;
 use App\Services\TicketService;
@@ -24,7 +30,10 @@ class BookingController extends Controller
         protected TicketService $tickets,
         protected VisitorIdentityService $documents,
         protected SavedIdentityService $identities,
-        protected ReviewService $reviews
+        protected ReviewService $reviews,
+        protected AvailabilityService $availability,
+        protected PromoService $promos,
+        protected RefundPolicyService $refundPolicy
     ) {}
 
     /**
@@ -41,6 +50,8 @@ class BookingController extends Controller
                 'payment',
                 'visitors',
                 'review',
+                'latestChangeRequest',
+                'promo',
             ])
             ->latest()
             ->get();
@@ -112,11 +123,38 @@ class BookingController extends Controller
         $payload = $booking->toArray();
         unset($payload['review']);
 
+        // Server-computed price breakdown. Never trust a client-sent total.
+        $payload['subtotal_amount'] = $booking->effectiveSubtotal();
+        $payload['discount_amount'] = (float) $booking->discount_amount;
+        $payload['total_price'] = (float) $booking->total_price;
+        $payload['promo_code'] = $booking->promo?->code;
+        $payload['promo'] = $booking->promo !== null
+            ? [
+                'id' => $booking->promo->id,
+                'code' => $booking->promo->code,
+                'description' => $booking->promo->description,
+                'discount_type' => $booking->promo->discount_type,
+            ]
+            : null;
+
+        // Server-authoritative payment deadline. Clients count down from
+        // payment_expires_in_seconds and must not derive it from their own
+        // clock; server_time makes clock skew visible/diagnosable.
+        $payload['payment_expires_at'] = $booking->payment_expires_at?->toIso8601ZuluString();
+        $payload['payment_expires_in_seconds'] = $booking->payment_expires_in_seconds;
+        $payload['payment_expired'] = $booking->payment_expired;
+        $payload['server_time'] = now()->toIso8601ZuluString();
+
         $payload['review'] = $review !== null
             ? (new MyReviewResource($review))->resolve()
             : null;
         $payload['review_status'] = $state['status'];
         $payload['can_review'] = $state['status'] === ReviewService::ELIGIBLE;
+        $payload['latest_change_request'] = $this->changeRequestPayload(
+            $booking->relationLoaded('latestChangeRequest')
+                ? $booking->latestChangeRequest
+                : $booking->latestChangeRequest()->first()
+        );
 
         $destination = $booking->tourPackage?->destination;
 
@@ -141,6 +179,37 @@ class BookingController extends Controller
     }
 
     /**
+     * Safe, owner-facing view of the most recent cancellation request.
+     * Admin-internal ids and notes are limited to what the traveller
+     * needs to understand the decision.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function changeRequestPayload(?BookingChangeRequest $request): ?array
+    {
+        if ($request === null) {
+            return null;
+        }
+
+        return [
+            'id' => $request->id,
+            'type' => $request->type,
+            'status' => $request->status,
+            'original_booking_date' => $request->original_booking_date?->toDateString(),
+            'reason' => $request->reason,
+            'admin_note' => $request->admin_note,
+            'refund_status' => $request->refund_status,
+            'refund_percentage' => $request->refund_percentage,
+            'refund_amount' => $request->refund_amount !== null ? (float) $request->refund_amount : null,
+            'refund_reference' => $request->refund_reference,
+            'refund_failure_reason' => $request->refund_failure_reason,
+            'refunded_at' => $request->refunded_at?->toIso8601String(),
+            'reviewed_at' => $request->reviewed_at?->toIso8601String(),
+            'created_at' => $request->created_at?->toIso8601String(),
+        ];
+    }
+
+    /**
      * Create new booking.
      *
      * `visitors` is optional for backward compatibility with older app
@@ -157,6 +226,7 @@ class BookingController extends Controller
             'tour_package_id' => 'required|exists:tour_packages,id',
             'booking_date' => 'required|date_format:Y-m-d|after_or_equal:today',
             'people_count' => 'required|integer|min:1',
+            'promo_code' => 'nullable|string|max:64',
             'visitors' => 'sometimes|array|min:1',
             'visitors.*.name' => 'required|string|min:2|max:100',
             'visitors.*.identity_type' => 'required|in:ktp,kia,student_card,other',
@@ -211,7 +281,7 @@ class BookingController extends Controller
                 ], 422);
             }
 
-            if (!$request->boolean('privacy_consent')) {
+            if (! $request->boolean('privacy_consent')) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Please accept the privacy notice before adding visitor identities.',
@@ -224,7 +294,7 @@ class BookingController extends Controller
 
         $reuseSavedDocument = $request->boolean('reuse_saved_identity_document');
 
-        if ($reuseSavedDocument && !$hasVisitors) {
+        if ($reuseSavedDocument && ! $hasVisitors) {
             return response()->json([
                 'success' => false,
                 'message' => 'Provide the booker identity row before reusing a saved document.',
@@ -238,7 +308,7 @@ class BookingController extends Controller
             ? $this->identities->forUser($request->user())
             : null;
 
-        if ($reuseSavedDocument && !$savedIdentity?->can_reuse_document) {
+        if ($reuseSavedDocument && ! $savedIdentity?->can_reuse_document) {
             return response()->json([
                 'success' => false,
                 'message' => 'Your saved identity document is not available. Upload it again for this booking.',
@@ -252,7 +322,7 @@ class BookingController extends Controller
             $bookerData = null;
 
             foreach ($visitors as $visitor) {
-                if (!empty($visitor['is_booker'])) {
+                if (! empty($visitor['is_booker'])) {
                     $bookerData = $visitor;
                     break;
                 }
@@ -276,23 +346,78 @@ class BookingController extends Controller
             }
         }
 
-        $totalPrice = $tourPackage->price * $request->people_count;
+        $promoInput = trim((string) $request->input('promo_code', ''));
 
         try {
-            $booking = DB::transaction(function () use ($request, $visitors, $hasVisitors, $totalPrice, $reuseSavedDocument, $savedIdentity) {
+            $booking = DB::transaction(function () use ($request, $visitors, $hasVisitors, $promoInput, $reuseSavedDocument, $savedIdentity) {
+                // Serialize bookings for this package. Without the row lock two
+                // simultaneous requests could both see the last seat as free.
+                $package = TourPackage::query()
+                    ->whereKey($request->tour_package_id)
+                    ->lockForUpdate()
+                    ->firstOrFail();
+
+                $this->availability->ensureAvailable(
+                    $package,
+                    (string) $request->booking_date,
+                    (int) $request->people_count
+                );
+
+                $subtotal = $this->promos->subtotal($package, (int) $request->people_count);
+                $promo = null;
+                $discount = 0.0;
+
+                if ($promoInput !== '') {
+                    // Revalidate with a row lock inside the booking
+                    // transaction. A preview may be stale: quota, activity or
+                    // the user's redemption count can change in between.
+                    $promoResult = $this->promos->validate(
+                        $promoInput,
+                        $request->user(),
+                        $package,
+                        (int) $request->people_count,
+                        (string) $request->booking_date,
+                        true
+                    );
+
+                    if (! $promoResult['ok']) {
+                        throw new PromoValidationException(
+                            $promoResult['reason'],
+                            $promoResult['message']
+                        );
+                    }
+
+                    $promo = $promoResult['promo'];
+                    $discount = $promoResult['discount'];
+                }
+
+                // The final amount is always computed here, never supplied by
+                // the client, and can never be negative.
+                $total = round(max(0, $subtotal - $discount), 2);
+
                 $booking = Booking::create([
                     'user_id' => $request->user()->id,
-                    'tour_package_id' => $request->tour_package_id,
+                    'tour_package_id' => $package->id,
                     'booking_date' => $request->booking_date,
                     'people_count' => $request->people_count,
-                    'total_price' => $totalPrice,
+                    'subtotal_amount' => $subtotal,
+                    'discount_amount' => $discount,
+                    'promo_code_id' => $promo?->id,
+                    'total_price' => $total,
                     'payment_status' => 'pending',
                     'booking_status' => 'pending',
+                    'payment_expires_at' => now()->addMinutes(
+                        max(1, (int) config('travelo.payment.ttl_minutes', 60))
+                    ),
                     'privacy_consent_at' => $hasVisitors ? now() : null,
                     'privacy_consent_version' => $hasVisitors
                         ? (string) config('travelo.privacy_policy_version')
                         : null,
                 ]);
+
+                if ($promo !== null) {
+                    $this->promos->redeem($promo, $request->user(), $booking, $discount);
+                }
 
                 $bookerVisitor = null;
 
@@ -323,7 +448,7 @@ class BookingController extends Controller
                     if ($reuseSavedDocument) {
                         $source = $bookerIdentity ?? $savedIdentity;
 
-                        if (!$source) {
+                        if (! $source) {
                             throw new \RuntimeException('The saved identity is not available.');
                         }
 
@@ -333,6 +458,21 @@ class BookingController extends Controller
 
                 return $booking;
             });
+        } catch (PromoValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+                'reason' => $e->reason,
+            ], 422);
+        } catch (BookingUnavailableException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+                'data' => [
+                    'reason' => $e->reason,
+                    'remaining' => $e->remaining,
+                ],
+            ], 409);
         } catch (\RuntimeException $e) {
             \Log::warning('Booking saved identity reuse failed', [
                 'user_id' => $request->user()->id,
@@ -361,6 +501,10 @@ class BookingController extends Controller
                 'error' => $e->getMessage(),
             ]);
 
+            // The booking row is deleted below, so the redemption would be
+            // cascaded away; release the quota explicitly first.
+            $this->promos->releaseForBooking($booking);
+
             // A reused identity document is a private file; do not leave it
             // behind when the booking is rolled back.
             $this->documents->deleteFilesForBooking($booking);
@@ -372,11 +516,16 @@ class BookingController extends Controller
             ], 502);
         }
 
+        $booking->load(['tourPackage.destination', 'payment', 'visitors', 'promo', 'latestChangeRequest']);
+
         return response()->json([
             'success' => true,
             'message' => 'Booking created successfully',
             'data' => [
-                'booking' => $booking->load(['tourPackage.destination', 'payment', 'visitors']),
+                // Same payload shape as GET /bookings/{id} so the client gets
+                // the server-authoritative payment countdown (and server_time)
+                // immediately, without a second request.
+                'booking' => $this->bookingPayload($booking),
                 'snap_token' => $snapToken,
             ],
         ], 201);
@@ -396,6 +545,8 @@ class BookingController extends Controller
                 'payment',
                 'visitors',
                 'review',
+                'latestChangeRequest',
+                'promo',
             ])
             ->findOrFail($id);
 
@@ -422,10 +573,10 @@ class BookingController extends Controller
     {
         $booking = $request->user()
             ->bookings()
-            ->with(['tourPackage.destination', 'payment', 'visitors', 'user'])
+            ->with(['tourPackage.destination', 'payment', 'visitors', 'user', 'promo'])
             ->findOrFail($id);
 
-        if (!$booking->isPaidAndConfirmed()) {
+        if (! $booking->isPaidAndConfirmed()) {
             return response()->json([
                 'success' => false,
                 'message' => 'An e-ticket is available only after payment is confirmed.',
@@ -437,7 +588,7 @@ class BookingController extends Controller
             ], 409);
         }
 
-        if (!$booking->hasCompleteVisitorIdentity()) {
+        if (! $booking->hasCompleteVisitorIdentity()) {
             return response()->json([
                 'success' => false,
                 'message' => 'Complete every visitor identity document before opening the e-ticket.',
@@ -467,6 +618,10 @@ class BookingController extends Controller
                 'booking_date' => $booking->booking_date?->toDateString(),
                 'people_count' => $booking->people_count,
                 'holder_name' => $request->user()->name,
+                'subtotal_amount' => $booking->effectiveSubtotal(),
+                'discount_amount' => (float) $booking->discount_amount,
+                'promo_code' => $booking->promo?->code,
+                'total_price' => (float) $booking->total_price,
                 'usage_status' => $state['usage_status'],
                 'payment_status' => $booking->payment_status,
                 'booking_status' => $booking->booking_status,
@@ -509,10 +664,10 @@ class BookingController extends Controller
             ]);
         }
 
-        $booking = Booking::with(['tourPackage.destination', 'payment', 'visitors', 'user'])
+        $booking = Booking::with(['tourPackage.destination', 'payment', 'visitors', 'user', 'promo'])
             ->find($payload['booking_id'] ?? 0);
 
-        if (!$booking) {
+        if (! $booking) {
             return response()->json([
                 'success' => true,
                 'data' => [
@@ -542,6 +697,38 @@ class BookingController extends Controller
                 'booking_status' => $state['booking_status'],
                 'people_count' => $booking->people_count,
                 'holder_name' => $booking->user?->name,
+            ],
+        ]);
+    }
+
+    /**
+     * Preview the cancellation refund before the traveller submits a request.
+     * Only the booking owner may see this; no side effects.
+     */
+    public function refundPreview(Request $request, int $id): JsonResponse
+    {
+        $booking = $request->user()
+            ->bookings()
+            ->with(['tourPackage.destination', 'promo', 'payment'])
+            ->findOrFail($id);
+
+        $calculation = $this->refundPolicy->calculate($booking);
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'booking_id' => $booking->id,
+                'booking_date' => $booking->booking_date?->toDateString(),
+                'total_price' => (float) $booking->total_price,
+                'discount_amount' => (float) $booking->discount_amount,
+                'promo_code' => $booking->promo?->code,
+                'percentage' => $calculation['percentage'],
+                'refund_amount' => $calculation['refund_amount'],
+                'tier' => $calculation['tier'],
+                'tier_label' => $calculation['tier_label'],
+                'days_before' => $calculation['days_before'],
+                'eligible' => $calculation['eligible'],
+                'reason' => $calculation['reason'] ?? null,
             ],
         ]);
     }
@@ -580,6 +767,20 @@ class BookingController extends Controller
                 'success' => false,
                 'message' => 'Booking already paid',
             ], 400);
+        }
+
+        // The absolute payment window is over: creating a new Snap token
+        // would let a released booking bypass the quota it no longer holds.
+        if ($booking->paymentWindowExpired()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'The payment window for this booking has expired. Please book again.',
+                'reason' => 'payment_expired',
+                'data' => [
+                    'booking_id' => $booking->id,
+                    'payment_expires_at' => $booking->payment_expires_at?->toIso8601ZuluString(),
+                ],
+            ], 422);
         }
 
         try {

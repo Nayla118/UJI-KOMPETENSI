@@ -57,6 +57,32 @@ class PaymentOutcomeTest {
     }
 
     @Test
+    fun payment_status_already_reports_the_deadline_as_expired() {
+        // Scheduler may not have cancelled the row yet, but the server's
+        // deadline flag is authoritative for the UI.
+        val data = PaymentStatusData(
+            bookingStatus = "pending",
+            paymentStatus = "pending",
+            status = "pending",
+            paymentExpired = true,
+            paymentExpiresInSeconds = 0
+        )
+
+        assertEquals(PaymentOutcome.EXPIRED, data.outcome())
+    }
+
+    @Test
+    fun a_paid_status_wins_over_a_stale_expired_flag() {
+        val data = PaymentStatusData(
+            bookingStatus = "confirmed",
+            paymentStatus = "paid",
+            paymentExpired = true
+        )
+
+        assertEquals(PaymentOutcome.SUCCESS, data.outcome())
+    }
+
+    @Test
     fun cancelled_transaction_is_reported_as_cancelled() {
         val data = PaymentStatusData(
             bookingStatus = "cancelled",

@@ -20,55 +20,20 @@
 </header>
 
 <div class="max-w-5xl mx-auto p-8">
+    @if($errors->any())
+    <div class="mb-6 bg-red-50 border border-red-200 rounded-xl p-4">
+        <p class="font-semibold text-red-800">Please correct the following errors:</p>
+        <ul class="text-sm text-red-700 mt-2 space-y-1">
+            @foreach($errors->all() as $error)
+            <li>• {{ $error }}</li>
+            @endforeach
+        </ul>
+    </div>
+    @endif
+
     <form id="tour-package-form" method="POST" action="{{ route('admin.tour-packages.store') }}" enctype="multipart/form-data" class="grid grid-cols-1 lg:grid-cols-3 gap-8">
         @csrf
-        <!-- Left Column: Form Details -->
-        <div class="lg:col-span-2 space-y-6">
-            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-                <h3 class="text-lg font-semibold mb-6 flex items-center gap-2">
-                    <span class="material-symbols-outlined text-primary">info</span>
-                    Package Information
-                </h3>
-                <div class="space-y-5">
-                    <div class="flex flex-col gap-2">
-                        <label class="text-sm font-medium text-slate-700">Tour Title</label>
-                        <input name="title" value="{{ old('title') }}" class="w-full rounded-lg border-slate-200 focus:ring-primary focus:border-primary px-4 py-3" placeholder="e.g. Luxury Safari in Kenya" type="text" required/>
-                    </div>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div class="flex flex-col gap-2">
-                            <label class="text-sm font-medium text-slate-700">Destination</label>
-                            <select name="destination_id" class="w-full rounded-lg border-slate-200 focus:ring-primary focus:border-primary px-4 py-3" required>
-                                <option value="">Select location</option>
-                                @foreach($destinations as $destination)
-                                <option value="{{ $destination->id }}">{{ $destination->city }}, {{ $destination->country }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-                        <div class="flex flex-col gap-2">
-                            <label class="text-sm font-medium text-slate-700">Price per Person (Rp)</label>
-                            <div class="relative">
-                                <span class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">Rp</span>
-                                <input name="price" value="{{ old('price') }}" class="w-full pl-12 pr-4 py-3 rounded-lg border-slate-200 focus:ring-primary focus:border-primary" placeholder="0" type="number" step="1" required/>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div class="flex flex-col gap-2">
-                            <label class="text-sm font-medium text-slate-700">Duration (Days)</label>
-                            <input name="duration_days" value="{{ old('duration_days') }}" class="w-full rounded-lg border-slate-200 focus:ring-primary focus:border-primary px-4 py-3" placeholder="7" type="number" min="1" required/>
-                        </div>
-                        <div class="flex flex-col gap-2">
-                            <label class="text-sm font-medium text-slate-700">Max Group Size</label>
-                            <input name="max_people" value="{{ old('max_people') }}" class="w-full rounded-lg border-slate-200 focus:ring-primary focus:border-primary px-4 py-3" placeholder="12" type="number" min="1" required/>
-                        </div>
-                    </div>
-                    <div class="flex flex-col gap-2">
-                        <label class="text-sm font-medium text-slate-700">Description</label>
-                        <textarea name="description" class="w-full rounded-lg border-slate-200 focus:ring-primary focus:border-primary px-4 py-3" placeholder="Describe the tour itinerary, highlights and inclusions..." rows="6">{{ old('description') }}</textarea>
-                    </div>
-                </div>
-            </div>
-        </div>
+        @include('admin.tour-packages.partials.content-fields', ['tourPackage' => null])
 
         <!-- Right Column: Media and Settings -->
         <div class="space-y-6">
@@ -79,13 +44,13 @@
                     Media
                 </h3>
                 <div class="border-2 border-dashed border-slate-200 rounded-xl p-8 text-center hover:border-primary transition-colors cursor-pointer group">
-                    <input type="file" name="image" id="image-upload" class="hidden" accept="image/*" onchange="previewImage(event)"/>
+                    <input type="file" name="image" id="image-upload" class="hidden" accept="image/jpeg,image/png,image/webp,image/gif" onchange="previewImage(event)"/>
                     <label for="image-upload" class="cursor-pointer">
                         <div class="mb-4 inline-flex items-center justify-center w-12 h-12 rounded-full bg-primary/10 text-primary group-hover:bg-primary group-hover:text-white transition-all">
                             <span class="material-symbols-outlined">cloud_upload</span>
                         </div>
                         <p class="text-sm font-medium">Click to upload cover photo</p>
-                        <p class="text-xs text-slate-500 mt-1">PNG, JPG up to 10MB</p>
+                        <p class="text-xs text-slate-500 mt-1">JPG, PNG, WEBP or GIF up to 4MB</p>
                     </label>
                 </div>
                 <div class="mt-4" id="image-preview-container" style="display: none;">
@@ -97,6 +62,8 @@
                     </div>
                 </div>
             </div>
+
+            @include('admin.tour-packages.partials.gallery-upload', ['tourPackage' => null])
 
             <!-- Quick Preview Card -->
             <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
@@ -163,4 +130,5 @@
         document.getElementById('preview-duration').textContent = (e.target.value || 0) + ' Days';
     });
 </script>
+@include('admin.tour-packages.partials.content-scripts')
 @endsection

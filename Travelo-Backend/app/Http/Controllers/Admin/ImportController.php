@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Services\ImportService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\View\View;
 
 class ImportController extends Controller
@@ -33,6 +34,7 @@ class ImportController extends Controller
     public function destinations(): View
     {
         $template = $this->importService->getDestinationTemplate();
+
         return view('admin.import.destinations', compact('template'));
     }
 
@@ -42,6 +44,7 @@ class ImportController extends Controller
     public function tourPackages(): View
     {
         $template = $this->importService->getTourPackageTemplate();
+
         return view('admin.import.tour-packages', compact('template'));
     }
 
@@ -63,7 +66,7 @@ class ImportController extends Controller
 
         // Store the file temporarily so it persists between requests
         $tempPath = $file->store('temp/imports', 'public');
-        if (!$tempPath) {
+        if (! $tempPath) {
             return redirect()->route('admin.import.destinations')
                 ->with('error', 'Failed to upload file. Please try again.');
         }
@@ -94,7 +97,7 @@ class ImportController extends Controller
 
         // Store the file temporarily so it persists between requests
         $tempPath = $file->store('temp/imports', 'public');
-        if (!$tempPath) {
+        if (! $tempPath) {
             return redirect()->route('admin.import.tour-packages')
                 ->with('error', 'Failed to upload file. Please try again.');
         }
@@ -113,14 +116,14 @@ class ImportController extends Controller
     public function importDestinations(Request $request): RedirectResponse
     {
         $tempPath = $request->input('temp_file_path');
-        if (!$tempPath || !\Storage::disk('public')->exists($tempPath)) {
+        if (! $tempPath || ! \Storage::disk('public')->exists($tempPath)) {
             return redirect()->route('admin.import.destinations')
                 ->with('error', 'File not found. Please upload the file again.');
         }
 
         // Create a temporary UploadedFile instance from the stored file
         $fullPath = \Storage::disk('public')->path($tempPath);
-        $file = new \Illuminate\Http\UploadedFile($fullPath, 'import.csv', 'text/csv', null, true);
+        $file = new UploadedFile($fullPath, 'import.csv', 'text/csv', null, true);
 
         $results = $this->importService->importDestinations($file, false);
 
@@ -143,14 +146,14 @@ class ImportController extends Controller
     public function importTourPackages(Request $request): RedirectResponse
     {
         $tempPath = $request->input('temp_file_path');
-        if (!$tempPath || !\Storage::disk('public')->exists($tempPath)) {
+        if (! $tempPath || ! \Storage::disk('public')->exists($tempPath)) {
             return redirect()->route('admin.import.tour-packages')
                 ->with('error', 'File not found. Please upload the file again.');
         }
 
         // Create a temporary UploadedFile instance from the stored file
         $fullPath = \Storage::disk('public')->path($tempPath);
-        $file = new \Illuminate\Http\UploadedFile($fullPath, 'import.csv', 'text/csv', null, true);
+        $file = new UploadedFile($fullPath, 'import.csv', 'text/csv', null, true);
 
         $results = $this->importService->importTourPackages($file, false);
 
@@ -185,21 +188,22 @@ class ImportController extends Controller
         $headers = $template['headers'];
         $sampleData = $template['sample_data'];
 
-        $csvContent = implode(',', $headers) . "\n";
+        $csvContent = implode(',', $headers)."\n";
         foreach ($sampleData as $row) {
             $csvContent .= implode(',', array_map(function ($value) {
                 // Cast to string to ensure str_contains works properly
                 $stringValue = (string) $value;
                 // Escape double quotes and wrap in quotes if contains comma or quotes
                 if (str_contains($stringValue, ',') || str_contains($stringValue, '"')) {
-                    return '"' . str_replace('"', '""', $stringValue) . '"';
+                    return '"'.str_replace('"', '""', $stringValue).'"';
                 }
+
                 return $stringValue;
-            }, array_values($row))) . "\n";
+            }, array_values($row)))."\n";
         }
 
         return response($csvContent)
             ->header('Content-Type', 'text/csv')
-            ->header('Content-Disposition', 'attachment; filename="' . $filename . '"');
+            ->header('Content-Disposition', 'attachment; filename="'.$filename.'"');
     }
 }

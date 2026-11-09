@@ -22,6 +22,9 @@
         <item quantity="other">%1$d days</item>
     </plurals>
     <string name="eticket_booking_id">Booking ID</string>
+    <string name="eticket_subtotal">Subtotal</string>
+    <string name="eticket_promo_code">Promo code</string>
+    <string name="eticket_discount">Discount</string>
     <string name="eticket_total_paid">Total paid</string>
     <string name="eticket_issued_note">This ticket was issued by Travelo\'s server after your payment was confirmed. The QR code is signed and can be checked by our gate team.</string>
     <string name="eticket_done">Done</string>
@@ -29,6 +32,9 @@
     <string name="eticket_view">View e-ticket</string>
     <string name="eticket_tour_package">Tour package</string>
     <string name="eticket_load_failed">Couldn\'t load your e-ticket. Please try again.</string>
+
+    <!-- Invoice -->
+    <string name="invoice_download">Unduh Invoice</string>
 
     <!-- Ticket history -->
     <string name="ticket_history_title">Ticket history</string>

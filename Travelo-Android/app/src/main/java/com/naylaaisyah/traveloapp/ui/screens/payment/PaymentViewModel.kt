@@ -26,6 +26,9 @@ data class PaymentUiState(
     val isReconciling: Boolean = false,
     val reconcileAttempt: Int = 0,
     val reconcileMax: Int = RECONCILE_MAX_POLLS + 1,
+    // Set when the backend refuses a Snap token because the deadline passed,
+    // or when a payment-status poll already reports the window as closed.
+    val expiredFromServer: Boolean = false,
     val error: String? = null
 )
 
@@ -59,6 +62,7 @@ class PaymentViewModel @Inject constructor(
                     _uiState.value = _uiState.value.copy(
                         isLoadingBooking = false,
                         booking = result.data,
+                        expiredFromServer = result.data.paymentExpired == true,
                         error = null
                     )
                 }
@@ -85,6 +89,16 @@ class PaymentViewModel @Inject constructor(
         val booking = _uiState.value.booking ?: return
         if (_uiState.value.isCreatingToken || _uiState.value.isReconciling) return
 
+        // The source of truth already says the window is closed: do not send
+        // the user to Snap for seats that have been released.
+        if (booking.paymentExpired == true || _uiState.value.expiredFromServer) {
+            _uiState.value = _uiState.value.copy(
+                expiredFromServer = true,
+                error = "The payment window for this booking has expired. Please book again."
+            )
+            return
+        }
+
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isCreatingToken = true, error = null)
             when (val result = repository.createSnapToken(token, booking.id)) {
@@ -104,12 +118,18 @@ class PaymentViewModel @Inject constructor(
                 }
                 is Resource.Error -> {
                     val alreadyPaid = _uiState.value.booking?.paymentOutcome() == PaymentOutcome.SUCCESS
+                    // The backend rejects an expired window with a 422. Flip to
+                    // the Kedaluwarsa state even if the local timer lagged.
+                    val rejectedAsExpired = result.message
+                        ?.contains("expired", ignoreCase = true) == true
                     _uiState.value = _uiState.value.copy(
                         isCreatingToken = false,
-                        error = if (alreadyPaid) {
-                            "This booking is already paid."
-                        } else {
-                            result.message ?: "Could not start payment. Please try again."
+                        expiredFromServer = rejectedAsExpired,
+                        error = when {
+                            alreadyPaid -> "This booking is already paid."
+                            rejectedAsExpired ->
+                                "The payment window for this booking has expired. Please book again."
+                            else -> result.message ?: "Could not start payment. Please try again."
                         }
                     )
                 }
@@ -165,7 +185,15 @@ class PaymentViewModel @Inject constructor(
 
     private suspend fun currentOutcome(token: String, bookingId: Int): PaymentOutcome? {
         return when (val result = repository.getPaymentStatus(token, bookingId)) {
-            is Resource.Success -> result.data?.outcome()
+            is Resource.Success -> {
+                val data = result.data
+                // A payment-status response that already reports the deadline
+                // as closed is authoritative; surface it immediately.
+                if (data.paymentExpired == true) {
+                    _uiState.value = _uiState.value.copy(expiredFromServer = true)
+                }
+                data.outcome()
+            }
             else -> null
         }
     }

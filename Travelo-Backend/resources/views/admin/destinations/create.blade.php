@@ -120,6 +120,21 @@
                     </div>
 
                     <div class="flex flex-col gap-2">
+                        <label class="text-sm font-semibold text-slate-700">Category</label>
+                        <select name="category" class="w-full rounded-lg border-slate-200 focus:border-primary focus:ring-primary text-sm p-2.5">
+                            <option value="">No category</option>
+                            @foreach(\App\Models\Destination::CATEGORIES as $category)
+                                <option value="{{ $category }}" {{ old('category') == $category ? 'selected' : '' }}>
+                                    {{ ucfirst($category) }}
+                                </option>
+                            @endforeach
+                        </select>
+                        @error('category')
+                            <p class="text-red-500 text-xs">{{ $message }}</p>
+                        @enderror
+                    </div>
+
+                    <div class="flex flex-col gap-2">
                         <label class="text-sm font-semibold text-slate-700">Average Rating</label>
                         <div class="rounded-lg border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-600">
                             Calculated automatically from published verified reviews.

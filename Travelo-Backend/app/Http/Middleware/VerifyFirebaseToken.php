@@ -21,7 +21,7 @@ class VerifyFirebaseToken
     {
         $token = $request->bearerToken();
 
-        if (!$token) {
+        if (! $token) {
             return response()->json([
                 'success' => false,
                 'message' => 'Authorization token not provided',
@@ -39,12 +39,12 @@ class VerifyFirebaseToken
         } catch (FailedToVerifyToken $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Invalid token: ' . $e->getMessage(),
+                'message' => 'Invalid token: '.$e->getMessage(),
             ], 401);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Token verification failed: ' . $e->getMessage(),
+                'message' => 'Token verification failed: '.$e->getMessage(),
             ], 401);
         }
     }

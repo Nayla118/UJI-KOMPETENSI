@@ -11,6 +11,7 @@ use App\Models\User;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Single source of truth for review eligibility and public aggregates.
@@ -23,11 +24,17 @@ use Illuminate\Support\Facades\DB;
 class ReviewService
 {
     public const ELIGIBLE = 'eligible';
+
     public const NOT_BOOKED = 'not_booked';
+
     public const UNPAID = 'unpaid';
+
     public const NOT_CHECKED_IN = 'not_checked_in';
+
     public const REVIEWED = 'reviewed';
+
     public const SUPERSEDED = 'superseded';
+
     public const CANCELLED = 'cancelled';
 
     /**
@@ -440,6 +447,17 @@ class ReviewService
                 ],
             ]);
         });
+
+        // Moderation already committed; the notification is best-effort and
+        // must never turn a successful admin action into an error.
+        try {
+            app(PushNotificationService::class)->notifyReviewModerated($review, $action);
+        } catch (\Throwable $e) {
+            Log::warning('Review moderation push notification failed', [
+                'review_id' => $review->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
 
         return [
             'ok' => true,

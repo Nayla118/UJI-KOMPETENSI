@@ -56,7 +56,7 @@ class HomeViewModel @Inject constructor(
 
             when (val destinationResult = repository.getDestinations()) {
                 is Resource.Success -> {
-                    val destinationList = destinationResult.data.orEmpty()
+                    val destinationList = destinationResult.data.items
                     _uiState.value = _uiState.value.copy(popularDestinations = destinationList)
                 }
                 is Resource.Error -> {
@@ -67,7 +67,7 @@ class HomeViewModel @Inject constructor(
 
             when (val tourResult = repository.getTourPackages()) {
                 is Resource.Success -> {
-                    val tourList = tourResult.data.orEmpty()
+                    val tourList = tourResult.data.items
                     _uiState.value = _uiState.value.copy(featuredTours = tourList)
                 }
                 is Resource.Error -> {

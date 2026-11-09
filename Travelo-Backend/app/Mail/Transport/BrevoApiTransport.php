@@ -27,8 +27,7 @@ class BrevoApiTransport implements TransportInterface
     public function __construct(
         private readonly string $apiKey,
         private readonly string $endpoint = 'https://api.brevo.com/v3/smtp/email'
-    ) {
-    }
+    ) {}
 
     public function send(RawMessage $message, ?Envelope $envelope = null): ?SentMessage
     {

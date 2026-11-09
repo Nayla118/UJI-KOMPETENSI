@@ -77,6 +77,7 @@
                 data-redeem-url="{{ route('admin.tickets.redeem') }}"
                 data-csrf-token="{{ csrf_token() }}"
                 data-secure-scanner-url="{{ $secureScannerUrl }}"
+                data-gate-staff="{{ $isGateStaff ? '1' : '0' }}"
             >
                 <div class="flex items-start justify-between gap-4">
                     <div>
@@ -227,7 +228,7 @@
                     </li>
                     <li class="flex gap-2">
                         <span class="material-symbols-outlined text-[18px] text-danger" aria-hidden="true">wrong_location</span>
-                        <span><span class="font-bold text-ink">Wrong destination</span> &mdash; your staff account is not assigned to this ticket&rsquo;s destination.</span>
+                        <span><span class="font-bold text-ink">Wrong destination</span> &mdash; your account is not assigned to this ticket&rsquo;s destination.</span>
                     </li>
                 </ul>
             </div>

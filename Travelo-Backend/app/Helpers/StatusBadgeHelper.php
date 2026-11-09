@@ -3,8 +3,7 @@
 /**
  * Helper functions for status badges
  */
-
-if (!function_exists('payment_status_badge')) {
+if (! function_exists('payment_status_badge')) {
     function payment_status_badge(?string $status): string
     {
         return match ($status) {
@@ -17,7 +16,7 @@ if (!function_exists('payment_status_badge')) {
     }
 }
 
-if (!function_exists('booking_status_badge')) {
+if (! function_exists('booking_status_badge')) {
     function booking_status_badge(?string $status): string
     {
         return match ($status) {

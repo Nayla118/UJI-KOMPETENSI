@@ -48,6 +48,8 @@ import androidx.lifecycle.repeatOnLifecycle
 import coil.compose.AsyncImage
 import com.naylaaisyah.traveloapp.R
 import com.naylaaisyah.traveloapp.data.models.Destination
+import com.naylaaisyah.traveloapp.data.models.WishlistTypes
+import com.naylaaisyah.traveloapp.data.wishlist.WishlistKey
 import com.naylaaisyah.traveloapp.ui.components.TraveloBottomNav
 import com.naylaaisyah.traveloapp.ui.components.TraveloButton
 import com.naylaaisyah.traveloapp.ui.components.TraveloButtonSize
@@ -60,6 +62,8 @@ import com.naylaaisyah.traveloapp.ui.components.TraveloLoadingState
 import com.naylaaisyah.traveloapp.ui.components.TraveloSearchBar
 import com.naylaaisyah.traveloapp.ui.components.TraveloSectionHeader
 import com.naylaaisyah.traveloapp.ui.components.TraveloTourPackageCard
+import com.naylaaisyah.traveloapp.ui.screens.favorites.WishlistEvent
+import com.naylaaisyah.traveloapp.ui.screens.favorites.WishlistViewModel
 import com.naylaaisyah.traveloapp.ui.theme.BlushMist
 import com.naylaaisyah.traveloapp.ui.theme.PlumInk
 import com.naylaaisyah.traveloapp.ui.theme.PlumMuted
@@ -77,9 +81,12 @@ fun HomeScreen(
     onMyBookingsClick: () -> Unit,
     onExploreClick: () -> Unit,
     onCompleteDocuments: (Int) -> Unit = {},
-    viewModel: HomeViewModel = hiltViewModel()
+    onRequireLogin: () -> Unit = {},
+    viewModel: HomeViewModel = hiltViewModel(),
+    wishlistViewModel: WishlistViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val wishlistState by wishlistViewModel.toggleState.collectAsState()
     val pendingDocumentJob = uiState.pendingDocumentJobs.firstOrNull()
 
     // Profile edits update the cached session immediately. Refresh the greeting
@@ -122,6 +129,15 @@ fun HomeScreen(
         if (message != null && hasContent) {
             snackbarHostState.showSnackbar(message)
             viewModel.clearError()
+        }
+    }
+
+    LaunchedEffect(wishlistViewModel) {
+        wishlistViewModel.events.collect { event ->
+            when (event) {
+                is WishlistEvent.RequiresLogin -> onRequireLogin()
+                is WishlistEvent.Message -> snackbarHostState.showSnackbar(event.text)
+            }
         }
     }
 
@@ -251,7 +267,18 @@ fun HomeScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(236.dp)
-                                    .padding(top = 4.dp)
+                                    .padding(top = 4.dp),
+                                isWishlisted = wishlistState.isWishlisted(
+                                    WishlistKey(WishlistTypes.DESTINATION, heroDestination.id),
+                                    heroDestination.isWishlisted
+                                ),
+                                onToggleWishlist = {
+                                    wishlistViewModel.toggle(
+                                        WishlistTypes.DESTINATION,
+                                        heroDestination.id,
+                                        heroDestination.isWishlisted
+                                    )
+                                }
                             )
                         }
                     }
@@ -274,7 +301,18 @@ fun HomeScreen(
                                 onClick = { onDestinationClick(destination.id) },
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(180.dp)
+                                    .height(180.dp),
+                                isWishlisted = wishlistState.isWishlisted(
+                                    WishlistKey(WishlistTypes.DESTINATION, destination.id),
+                                    destination.isWishlisted
+                                ),
+                                onToggleWishlist = {
+                                    wishlistViewModel.toggle(
+                                        WishlistTypes.DESTINATION,
+                                        destination.id,
+                                        destination.isWishlisted
+                                    )
+                                }
                             )
                         }
                     }
@@ -294,7 +332,18 @@ fun HomeScreen(
                         ) { tourPackage ->
                             TraveloTourPackageCard(
                                 tourPackage = tourPackage,
-                                onClick = { onTourPackageClick(tourPackage.id) }
+                                onClick = { onTourPackageClick(tourPackage.id) },
+                                isWishlisted = wishlistState.isWishlisted(
+                                    WishlistKey(WishlistTypes.TOUR_PACKAGE, tourPackage.id),
+                                    tourPackage.isWishlisted
+                                ),
+                                onToggleWishlist = {
+                                    wishlistViewModel.toggle(
+                                        WishlistTypes.TOUR_PACKAGE,
+                                        tourPackage.id,
+                                        tourPackage.isWishlisted
+                                    )
+                                }
                             )
                         }
                     }

@@ -2,10 +2,13 @@
 
 namespace App\Services;
 
+use App\Models\ActivityLog;
 use App\Models\Booking;
 use App\Models\Payment;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Midtrans\Config;
 use Midtrans\Snap;
 
 class MidtransService
@@ -40,7 +43,7 @@ class MidtransService
 
     public function generateOrderId(Booking $booking): string
     {
-        return 'BOOKING-' . $booking->id . '-' . now()->format('YmdHis') . '-' . random_int(1000, 9999);
+        return 'BOOKING-'.$booking->id.'-'.now()->format('YmdHis').'-'.random_int(1000, 9999);
     }
 
     public function extractBookingIdFromOrderId(string $orderId): ?int
@@ -63,18 +66,18 @@ class MidtransService
         // fail, which surfaces as "stuck pending".
         if ($serverKey === '') {
             Log::critical('MIDTRANS_SERVER_KEY is not configured');
-        } elseif (!$isProduction && !str_starts_with($serverKey, 'SB-Mid-server-')) {
+        } elseif (! $isProduction && ! str_starts_with($serverKey, 'SB-Mid-server-')) {
             Log::warning('MIDTRANS_SERVER_KEY does not look like a Sandbox key (expected SB-Mid-server-...) while MIDTRANS_IS_PRODUCTION=false. Verify + webhook will fail.');
         } elseif ($isProduction && str_starts_with($serverKey, 'SB-Mid-')) {
             Log::warning('Sandbox MIDTRANS_SERVER_KEY used while MIDTRANS_IS_PRODUCTION=true. Verify + webhook will fail.');
         }
 
-        \Midtrans\Config::$serverKey = $serverKey;
-        \Midtrans\Config::$isProduction = $isProduction;
-        \Midtrans\Config::$isSanitized = true;
-        \Midtrans\Config::$is3ds = true;
+        Config::$serverKey = $serverKey;
+        Config::$isProduction = $isProduction;
+        Config::$isSanitized = true;
+        Config::$is3ds = true;
 
-        $this->snap = new Snap();
+        $this->snap = new Snap;
     }
 
     /**
@@ -82,6 +85,10 @@ class MidtransService
      */
     public function createSnapToken(Booking $booking, User $user): string
     {
+        if ($booking->paymentWindowExpired()) {
+            throw new \Exception('The payment window for this booking has expired.');
+        }
+
         try {
             // NOTE (2026-09-22 fix): Midtrans Snap REJECTS reusing an order_id
             // ("order_id sudah digunakan" / "has already been taken", HTTP 400).
@@ -93,51 +100,12 @@ class MidtransService
                 throw new \Exception('Booking already paid');
             }
             $orderId = $this->generateOrderId($booking);
-            $tourPackage = $booking->tourPackage;
 
             Log::info('MidtransService: Creating snap token');
-            Log::info('Order ID: ' . $orderId);
-            Log::info('Server Key configured: ' . (config('services.midtrans.server_key') ? 'Yes' : 'No'));
+            Log::info('Order ID: '.$orderId);
+            Log::info('Server Key configured: '.(config('services.midtrans.server_key') ? 'Yes' : 'No'));
 
-            $params = [
-                'transaction_details' => [
-                    'order_id' => $orderId,
-                    'gross_amount' => (int) $booking->total_price,
-                ],
-                // Tampilkan SEMUA metode: kartu + semua e-wallet + VA + gerai + paylater.
-                // Tanpa ini, metode yang tampil tergantung setting dashboard merchant
-                // dan bisa ada e-wallet yang ke-hidden sehingga "gabisa paid".
-                'enabled_payments' => self::ENABLED_PAYMENTS,
-                'credit_card' => [
-                    'secure' => true,
-                    // Simpan kartu untuk pembayaran berikutnya (opsional, aman).
-                    'save_card' => false,
-                ],
-                // Snap URL kedaluwarsa 24 jam agar user bisa bayar via semua
-                // metode lambat (VA, gerai, QRIS) tanpa order_id expired duluan.
-                'expiry' => [
-                    'start_time' => now()->format('Y-m-d H:i:s O'),
-                    'unit' => 'hour',
-                    'duration' => 24,
-                ],
-                'customer_details' => [
-                    'first_name' => $user->name ?? 'Customer',
-                    'email' => $user->email ?? 'customer@example.com',
-                ],
-                'item_details' => [
-                    [
-                        'id' => $tourPackage->id,
-                        'name' => $tourPackage->title ?? 'Tour Package',
-                        'price' => (int) $tourPackage->price,
-                        'quantity' => $booking->people_count,
-                    ]
-                ],
-                'callbacks' => [
-                    'finish' => config('app.frontend_url') . '/booking/success?booking_id=' . $booking->id,
-                    'error' => config('app.frontend_url') . '/booking/error?booking_id=' . $booking->id,
-                    'pending' => config('app.frontend_url') . '/booking/pending?booking_id=' . $booking->id,
-                ],
-            ];
+            $params = $this->buildSnapParams($booking, $user, $orderId);
 
             // Never log the full Snap payload: it contains the customer's name,
             // email, item details and price. Log only non-identifying metadata.
@@ -167,11 +135,11 @@ class MidtransService
                 throw new \Exception('Booking already paid');
             }
             $history = $existingPayment?->order_history ?? $payment->order_history ?? [];
-            if (!is_array($history)) {
+            if (! is_array($history)) {
                 $history = [];
             }
             $previousOrderId = $existingPayment?->midtrans_order_id ?? ($payment->exists ? $payment->midtrans_order_id : null);
-            if (!empty($previousOrderId) && $previousOrderId !== $orderId && !in_array($previousOrderId, $history, true)) {
+            if (! empty($previousOrderId) && $previousOrderId !== $orderId && ! in_array($previousOrderId, $history, true)) {
                 $history[] = $previousOrderId;
                 // Keep history bounded (last 10).
                 $history = array_values(array_slice($history, -10));
@@ -179,13 +147,14 @@ class MidtransService
             $payment->midtrans_order_id = $orderId;
             $payment->order_history = $history;
             if ($payment->payment_status !== 'paid') {
-                if (!$payment->exists || empty($payment->payment_status)) {
+                if (! $payment->exists || empty($payment->payment_status)) {
                     $payment->payment_status = 'pending';
                 }
                 $payment->amount = $booking->total_price;
                 // Persist the fresh token so clients can poll/reuse it.
                 $payment->snap_token = $snapToken;
-                $payment->expires_at = now()->addHours(24);
+                // Keep the payment row aligned with the booking deadline.
+                $payment->expires_at = $booking->payment_expires_at ?? now()->addHours(24);
                 // Reset detail metode saat token baru dibuat (user belum pilih metode).
                 if (empty($payment->payment_method)) {
                     $payment->payment_method = null;
@@ -197,10 +166,81 @@ class MidtransService
 
             return $snapToken;
         } catch (\Exception $e) {
-            Log::error('MidtransService Exception: ' . $e->getMessage());
-            Log::error('Trace: ' . $e->getTraceAsString());
+            Log::error('MidtransService Exception: '.$e->getMessage());
+            Log::error('Trace: '.$e->getTraceAsString());
             throw $e;
         }
+    }
+
+    /**
+     * Snap payload builder. Keeping it separate makes the amount contract
+     * testable without a network call: `gross_amount` is always the final
+     * booking total (subtotal minus promo discount), never the raw subtotal.
+     */
+    public function buildSnapParams(Booking $booking, User $user, string $orderId): array
+    {
+        $tourPackage = $booking->tourPackage;
+        $discount = (float) $booking->discount_amount;
+
+        $itemDetails = [
+            [
+                'id' => $tourPackage->id,
+                'name' => $tourPackage->title ?? 'Tour Package',
+                'price' => (int) $tourPackage->price,
+                'quantity' => $booking->people_count,
+            ],
+        ];
+
+        if ($discount > 0) {
+            $itemDetails[] = [
+                'id' => 'PROMO',
+                'name' => 'Promo '.($booking->promo_code ?: 'discount'),
+                'price' => -1 * (int) round($discount),
+                'quantity' => 1,
+            ];
+        }
+
+        // Snap must not outlive the booking's absolute payment window. Without
+        // this a released booking could still be paid on the Midtrans page.
+        $expiryMinutes = 1;
+
+        if ($booking->payment_expires_at !== null) {
+            $seconds = max(0, $booking->payment_expires_at->getTimestamp() - now()->getTimestamp());
+            $expiryMinutes = max(1, (int) ceil($seconds / 60));
+        }
+
+        return [
+            'transaction_details' => [
+                'order_id' => $orderId,
+                'gross_amount' => (int) $booking->total_price,
+            ],
+            // Tampilkan SEMUA metode: kartu + semua e-wallet + VA + gerai + paylater.
+            // Tanpa ini, metode yang tampil tergantung setting dashboard merchant
+            // dan bisa ada e-wallet yang ke-hidden sehingga "gabisa paid".
+            'enabled_payments' => self::ENABLED_PAYMENTS,
+            'credit_card' => [
+                'secure' => true,
+                // Simpan kartu untuk pembayaran berikutnya (opsional, aman).
+                'save_card' => false,
+            ],
+            // Snap URL expires together with the booking payment deadline
+            // (TRAVELO_PAYMENT_TTL_MINUTES), not a hardcoded 24 hours.
+            'expiry' => [
+                'start_time' => now()->format('Y-m-d H:i:s O'),
+                'unit' => 'minute',
+                'duration' => $expiryMinutes,
+            ],
+            'customer_details' => [
+                'first_name' => $user->name ?? 'Customer',
+                'email' => $user->email ?? 'customer@example.com',
+            ],
+            'item_details' => $itemDetails,
+            'callbacks' => [
+                'finish' => config('app.frontend_url').'/booking/success?booking_id='.$booking->id,
+                'error' => config('app.frontend_url').'/booking/error?booking_id='.$booking->id,
+                'pending' => config('app.frontend_url').'/booking/pending?booking_id='.$booking->id,
+            ],
+        ];
     }
 
     /**
@@ -217,14 +257,14 @@ class MidtransService
         Log::info('Midtrans API request', [
             'order_id' => $orderId,
             'is_production' => $isProduction,
-            'server_key_configured' => !empty($serverKey),
+            'server_key_configured' => ! empty($serverKey),
         ]);
 
         $ch = curl_init($url);
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_HTTPHEADER => [
-                'Authorization: Basic ' . base64_encode($serverKey . ':'),
+                'Authorization: Basic '.base64_encode($serverKey.':'),
                 'Content-Type: application/json',
             ],
             CURLOPT_TIMEOUT => 15,
@@ -274,7 +314,7 @@ class MidtransService
                 ];
             }
             // Real HTTP 404 with empty/non-JSON body: also "not paid yet".
-            if ($httpCode === 404 && !is_array($transactionArray)) {
+            if ($httpCode === 404 && ! is_array($transactionArray)) {
                 return [
                     'status' => 'pending',
                     'fraud_status' => null,
@@ -298,7 +338,7 @@ class MidtransService
                 'error' => $error,
                 'response' => $response,
             ]);
-            throw new \Exception('Midtrans API request failed: ' . ($error ?: "HTTP {$httpCode}: {$response}"));
+            throw new \Exception('Midtrans API request failed: '.($error ?: "HTTP {$httpCode}: {$response}"));
         }
 
         $transactionArray = json_decode($response, true);
@@ -314,32 +354,215 @@ class MidtransService
     }
 
     /**
+     * Best-effort cancellation of a pending Midtrans transaction. The local
+     * expiry is authoritative: a network failure or an already-final Midtrans
+     * status is logged and ignored, never rethrown to the scheduler.
+     */
+    public function expireTransaction(?string $orderId): bool
+    {
+        if ($orderId === null || trim($orderId) === '') {
+            return false;
+        }
+
+        $serverKey = (string) config('services.midtrans.server_key');
+
+        if ($serverKey === '') {
+            Log::warning('Midtrans expire skipped: server key is not configured', [
+                'order_id' => $orderId,
+            ]);
+
+            return false;
+        }
+
+        $isProduction = (bool) config('services.midtrans.is_production', false);
+        $baseUrl = $isProduction ? 'https://api.midtrans.com' : 'https://api.sandbox.midtrans.com';
+        $url = $baseUrl.'/v2/'.rawurlencode($orderId).'/expire';
+
+        try {
+            $ch = curl_init($url);
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_POST => true,
+                CURLOPT_POSTFIELDS => '{}',
+                CURLOPT_HTTPHEADER => [
+                    'Authorization: Basic '.base64_encode($serverKey.':'),
+                    'Content-Type: application/json',
+                ],
+                CURLOPT_TIMEOUT => 10,
+                CURLOPT_CONNECTTIMEOUT => 5,
+            ]);
+
+            $response = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $error = curl_error($ch);
+            curl_close($ch);
+
+            if ($response === false || $httpCode < 200 || $httpCode >= 300) {
+                Log::warning('Midtrans expire request failed (local expiry continues)', [
+                    'order_id' => $orderId,
+                    'http_code' => $httpCode,
+                    'error' => $error,
+                ]);
+
+                return false;
+            }
+
+            Log::info('Midtrans transaction expired', ['order_id' => $orderId]);
+
+            return true;
+        } catch (\Throwable $e) {
+            Log::warning('Midtrans expire request threw (local expiry continues)', [
+                'order_id' => $orderId,
+                'error' => $e->getMessage(),
+            ]);
+
+            return false;
+        }
+    }
+
+    /**
      * All order_ids ever issued for this booking (current + history).
      */
     public function getOrderCandidates(Booking $booking): array
     {
         $payment = $booking->payment ?? Payment::where('booking_id', $booking->id)->first();
-        if (!$payment) {
+        if (! $payment) {
             return [];
         }
         $candidates = [];
-        if (!empty($payment->midtrans_order_id)) {
+        if (! empty($payment->midtrans_order_id)) {
             $candidates[] = $payment->midtrans_order_id;
         }
         $history = $payment->order_history ?? [];
-        if (!is_array($history)) {
+        if (! is_array($history)) {
             $history = [];
         }
         foreach (array_reverse($history) as $old) {
-            if (!empty($old) && !in_array($old, $candidates, true)) {
+            if (! empty($old) && ! in_array($old, $candidates, true)) {
                 $candidates[] = $old;
             }
         }
+
         return $candidates;
     }
 
     /**
-     * Verify EVERY order_id for this booking against Midtrans.
+     * Refund a Midtrans transaction (full or partial).
+     *
+     * @param  string  $transactionId  Midtrans transaction_id
+     * @param  string  $refundKey  Idempotency key (unique per refund attempt)
+     * @param  int  $amount  Amount to refund (in the currency's minor unit)
+     * @param  string  $reason  Human-readable reason
+     * @return array{success: bool, reference?: string, error?: string}
+     */
+    public function refundTransaction(
+        string $transactionId,
+        string $refundKey,
+        int $amount,
+        string $reason
+    ): array {
+        $serverKey = (string) config('services.midtrans.server_key');
+        $isProduction = (bool) config('services.midtrans.is_production', false);
+        $baseUrl = $isProduction ? 'https://api.midtrans.com' : 'https://api.sandbox.midtrans.com';
+
+        if ($serverKey === '') {
+            Log::warning('Midtrans refund skipped: server key is not configured', [
+                'transaction_id' => $transactionId,
+                'refund_key' => $refundKey,
+            ]);
+
+            return [
+                'success' => false,
+                'error' => 'Midtrans server key not configured',
+            ];
+        }
+
+        $url = $baseUrl.'/v2/'.rawurlencode($transactionId).'/refund';
+
+        try {
+            $ch = curl_init($url);
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_POST => true,
+                CURLOPT_POSTFIELDS => json_encode([
+                    'refund_key' => $refundKey,
+                    'amount' => $amount,
+                    'reason' => $reason,
+                ]),
+                CURLOPT_HTTPHEADER => [
+                    'Authorization: Basic '.base64_encode($serverKey.':'),
+                    'Content-Type: application/json',
+                ],
+                CURLOPT_TIMEOUT => 15,
+                CURLOPT_CONNECTTIMEOUT => 10,
+            ]);
+
+            $response = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $error = curl_error($ch);
+            curl_close($ch);
+
+            if ($response === false || ($httpCode < 200 || $httpCode >= 300)) {
+                Log::warning('Midtrans refund request failed', [
+                    'transaction_id' => $transactionId,
+                    'refund_key' => $refundKey,
+                    'http_code' => $httpCode,
+                    'error' => $error,
+                    'response' => $response,
+                ]);
+
+                return [
+                    'success' => false,
+                    'error' => $error ?: "HTTP {$httpCode}: {$response}",
+                ];
+            }
+
+            $decoded = json_decode($response, true);
+            $statusCode = $decoded['status_code'] ?? $httpCode;
+
+            // Midtrans returns 200 + status_code 200 for a successful refund.
+            // Duplicate refund_key returns an error status_code (e.g. 409).
+            if (is_array($decoded) && in_array((string) $statusCode, ['200', '201'], true)) {
+                Log::info('Midtrans refund succeeded', [
+                    'transaction_id' => $transactionId,
+                    'refund_key' => $refundKey,
+                    'amount' => $amount,
+                ]);
+
+                return [
+                    'success' => true,
+                    'reference' => $decoded['refund_id'] ?? $decoded['transaction_id'] ?? $refundKey,
+                ];
+            }
+
+            Log::warning('Midtrans refund rejected', [
+                'transaction_id' => $transactionId,
+                'refund_key' => $refundKey,
+                'http_code' => $httpCode,
+                'status_code' => $statusCode,
+                'message' => $decoded['status_message'] ?? null,
+                'response' => $response,
+            ]);
+
+            return [
+                'success' => false,
+                'error' => $decoded['status_message'] ?? "HTTP {$httpCode}",
+            ];
+        } catch (\Throwable $e) {
+            Log::warning('Midtrans refund threw an exception', [
+                'transaction_id' => $transactionId,
+                'refund_key' => $refundKey,
+                'error' => $e->getMessage(),
+            ]);
+
+            return [
+                'success' => false,
+                'error' => $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
      * Returns the best result with strict priority:
      *  1. paid on ANY order (user may have paid on an older Snap URL)
      *  2. the CURRENT (latest) order's own status — so a fresh pending
@@ -365,7 +588,8 @@ class MidtransService
             try {
                 $data = $this->verifyPayment($orderId);
             } catch (\Exception $e) {
-                $errors[] = $orderId . ': ' . $e->getMessage();
+                $errors[] = $orderId.': '.$e->getMessage();
+
                 continue;
             }
             $local = $this->mapMidtransStatusToLocalStatus($data['status'] ?? null, $data['fraud_status'] ?? null);
@@ -398,7 +622,7 @@ class MidtransService
             return $fallbackPending;
         }
 
-        throw new \Exception('Could not verify any order (' . implode('; ', $errors) . ')');
+        throw new \Exception('Could not verify any order ('.implode('; ', $errors).')');
     }
 
     /**
@@ -451,10 +675,10 @@ class MidtransService
         switch ($paymentType) {
             case 'credit_card':
                 $channel = strtolower((string) ($midtransData['bank'] ?? ''));
-                if (!empty($midtransData['masked_card'])) {
+                if (! empty($midtransData['masked_card'])) {
                     $metadata['masked_card'] = $midtransData['masked_card'];
                 }
-                if (!empty($midtransData['bank'])) {
+                if (! empty($midtransData['bank'])) {
                     $metadata['bank'] = $midtransData['bank'];
                 }
                 break;
@@ -463,13 +687,13 @@ class MidtransService
                 // BCA/BRI/BNI: va_numbers[0]{bank, va_number}
                 // Permata: permata_va_number | Mandiri eChannel: bill_key/biller_code
                 $vaNumbers = $midtransData['va_numbers'] ?? [];
-                if (is_array($vaNumbers) && !empty($vaNumbers[0]['bank'])) {
+                if (is_array($vaNumbers) && ! empty($vaNumbers[0]['bank'])) {
                     $channel = strtolower((string) $vaNumbers[0]['bank']);
                     $metadata['va_numbers'] = $vaNumbers;
-                } elseif (!empty($midtransData['permata_va_number'])) {
+                } elseif (! empty($midtransData['permata_va_number'])) {
                     $channel = 'permata';
                     $metadata['permata_va_number'] = $midtransData['permata_va_number'];
-                } elseif (!empty($midtransData['bill_key'])) {
+                } elseif (! empty($midtransData['bill_key'])) {
                     $channel = 'mandiri';
                     $metadata['bill_key'] = $midtransData['bill_key'];
                     $metadata['biller_code'] = $midtransData['biller_code'] ?? null;
@@ -491,7 +715,7 @@ class MidtransService
                 // E-wallet: channel = payment_type itu sendiri agar label bagus.
                 $channel = $paymentType !== '' ? $paymentType : null;
                 foreach (['qr_string', 'deeplink', 'actions'] as $k) {
-                    if (!empty($midtransData[$k])) {
+                    if (! empty($midtransData[$k])) {
                         $metadata[$k] = $midtransData[$k];
                     }
                 }
@@ -500,10 +724,10 @@ class MidtransService
             case 'cstore':
                 // store: indomaret / alfamart, payment_code untuk bayar di kasir.
                 $channel = strtolower((string) ($midtransData['store'] ?? ''));
-                if (!empty($midtransData['payment_code'])) {
+                if (! empty($midtransData['payment_code'])) {
                     $metadata['payment_code'] = $midtransData['payment_code'];
                 }
-                if (!empty($midtransData['store'])) {
+                if (! empty($midtransData['store'])) {
                     $metadata['store'] = $midtransData['store'];
                 }
                 break;
@@ -516,7 +740,7 @@ class MidtransService
         }
 
         // Simpan actions (QR/deeplink/VA) bila ada agar bisa ditampilkan ulang.
-        if (!empty($midtransData['actions']) && empty($metadata['actions'])) {
+        if (! empty($midtransData['actions']) && empty($metadata['actions'])) {
             $metadata['actions'] = $midtransData['actions'];
         }
 
@@ -525,6 +749,20 @@ class MidtransService
 
     public function syncBookingPaymentStatus(Booking $booking, array $midtransData): array
     {
+        // The webhook path (and every other caller) wraps this in a DB
+        // transaction. Lock the booking row so the auto-expire command and a
+        // late webhook can never interleave their read-then-write.
+        if (DB::transactionLevel() > 0) {
+            $locked = Booking::query()
+                ->whereKey($booking->getKey())
+                ->lockForUpdate()
+                ->first();
+
+            if ($locked !== null) {
+                $booking = $locked;
+            }
+        }
+
         $transactionStatus = $midtransData['transaction_status']
             ?? $midtransData['status']
             ?? null;
@@ -537,6 +775,13 @@ class MidtransService
         $paymentStatus = $this->mapMidtransStatusToLocalStatus($transactionStatus, $fraudStatus);
 
         $existing = Payment::where('booking_id', $booking->id)->first();
+
+        // Rows settled before `payment_type` existed (or before this feature)
+        // still get the raw gateway method so invoices and the admin payment
+        // detail can label the transaction without another Midtrans call.
+        if ($existing !== null && $paymentType !== null && empty($existing->payment_type)) {
+            $existing->forceFill(['payment_type' => strtolower((string) $paymentType)])->save();
+        }
 
         // Idempotency: same order + same raw transaction_status already
         // applied (duplicate webhook delivery) -> skip writes entirely.
@@ -606,6 +851,32 @@ class MidtransService
             }
         }
 
+        // A settled payment can arrive after the local expiry command already
+        // cancelled the booking (delayed webhook / very slow method). Never
+        // revive a released booking without re-checking per-date capacity.
+        $latePaidAfterExpiry = $paymentStatus === 'paid'
+            && $booking->booking_status === 'cancelled'
+            && $booking->payment_status === 'expired'
+            && $existing?->payment_status !== 'paid';
+
+        $reviveLatePayment = true;
+
+        if ($latePaidAfterExpiry) {
+            $reviveLatePayment = $this->canReviveExpiredBooking($booking);
+
+            Log::warning(
+                $reviveLatePayment
+                    ? 'Late paid webhook after expiry: seats still available, reviving booking'
+                    : 'Late paid webhook after expiry: no seats available, booking stays cancelled',
+                [
+                    'booking_id' => $booking->id,
+                    'order_id' => $orderId,
+                    'people_count' => $booking->people_count,
+                    'booking_date' => $booking->booking_date?->toDateString(),
+                ]
+            );
+        }
+
         // Normalize per-method details (bank VA, store code, e-wallet actions...).
         [$normalizedMethod, $channel, $metadata] = $this->normalizeMidtransPayment($midtransData);
 
@@ -617,13 +888,16 @@ class MidtransService
             'midtrans_order_id' => $orderId ?? $existing?->midtrans_order_id,
             'payment_status' => $paymentStatus,
             'payment_method' => $normalizedMethod ?? $paymentType ?? $existing?->payment_method,
+            'payment_type' => $paymentType !== null
+                ? strtolower((string) $paymentType)
+                : $existing?->payment_type,
             'amount' => $booking->total_price,
             'payment_channel' => $channel ?? $existing?->payment_channel,
             'transaction_status' => $transactionStatus ?? $existing?->transaction_status,
             'fraud_status' => $fraudStatus ?? $existing?->fraud_status,
         ];
 
-        if (!empty($metadata)) {
+        if (! empty($metadata)) {
             $paymentData['metadata'] = array_merge($existing?->metadata ?? [], $metadata);
         }
 
@@ -643,10 +917,50 @@ class MidtransService
             default => 'pending',
         };
 
+        if ($latePaidAfterExpiry && ! $reviveLatePayment) {
+            // Record the money (payment row + payment_status paid) for a manual
+            // refund, but do not hand back a released seat.
+            $bookingStatus = 'cancelled';
+        }
+
         $booking->update([
             'payment_status' => $paymentStatus,
             'booking_status' => $bookingStatus,
         ]);
+
+        if ($latePaidAfterExpiry) {
+            if ($reviveLatePayment) {
+                // The promo redemption was released when the booking expired;
+                // restore it because the discounted total is what was paid.
+                app(PromoService::class)->restoreForBooking($booking);
+
+                ActivityLog::log(
+                    'Booking revived after late payment',
+                    Booking::class,
+                    $booking->id,
+                    null,
+                    null,
+                    [
+                        'booking_id' => $booking->id,
+                        'order_id' => $orderId,
+                        'payment_expires_at' => $booking->payment_expires_at?->toIso8601String(),
+                    ]
+                );
+            } else {
+                ActivityLog::log(
+                    'Late payment requires refund',
+                    Booking::class,
+                    $booking->id,
+                    null,
+                    null,
+                    [
+                        'booking_id' => $booking->id,
+                        'order_id' => $orderId,
+                        'reason' => 'no_seats_after_expiry',
+                    ]
+                );
+            }
+        }
 
         Log::info('Midtrans payment synchronized', [
             'booking_id' => $booking->id,
@@ -658,11 +972,59 @@ class MidtransService
             'transaction_id' => $transactionId,
         ]);
 
+        // Push is best-effort and must never affect payment reconciliation.
+        if ($latePaidAfterExpiry && ! $reviveLatePayment) {
+            try {
+                app(PushNotificationService::class)->notifyLatePaymentRequiresRefund(
+                    $booking->fresh(['tourPackage.destination'])
+                );
+            } catch (\Throwable $e) {
+                Log::warning('Late-payment push notification failed', [
+                    'booking_id' => $booking->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        } elseif (in_array($paymentStatus, ['paid', 'failed', 'expired'], true)
+            && $existing?->payment_status !== $paymentStatus) {
+            try {
+                app(PushNotificationService::class)->notifyPayment(
+                    $booking->fresh(['tourPackage.destination']),
+                    $paymentStatus
+                );
+            } catch (\Throwable $e) {
+                Log::warning('Payment push notification failed', [
+                    'booking_id' => $booking->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
         return [
             'booking' => $booking->fresh(['payment']),
             'payment' => $payment,
             'payment_status' => $paymentStatus,
             'booking_status' => $bookingStatus,
         ];
+    }
+
+    /**
+     * Capacity is re-read after locking the booking row. The expired booking
+     * is already cancelled, so it no longer contributes to bookedSeats().
+     */
+    private function canReviveExpiredBooking(Booking $booking): bool
+    {
+        $booking->loadMissing('tourPackage');
+
+        if ($booking->tourPackage === null || $booking->booking_date === null) {
+            return false;
+        }
+
+        $availability = app(AvailabilityService::class)->forDate(
+            $booking->tourPackage,
+            $booking->booking_date->toDateString(),
+            (int) $booking->people_count
+        );
+
+        return (bool) $availability['available'];
     }
 }

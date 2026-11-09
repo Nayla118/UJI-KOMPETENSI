@@ -21,8 +21,11 @@ class Payment extends Model
     // expired = waktu bayar habis (Midtrans: expire) -> booking 'cancelled'.
     // Nilai ini HARUS sama dengan enum DB (pending,paid,failed,expired).
     public const STATUS_PENDING = 'pending';
+
     public const STATUS_PAID = 'paid';
+
     public const STATUS_FAILED = 'failed';
+
     public const STATUS_EXPIRED = 'expired';
 
     public const STATUSES = [
@@ -97,6 +100,7 @@ class Payment extends Model
         'order_history',
         'payment_status',
         'payment_method',
+        'payment_type',
         'amount',
         'paid_at',
         // Kolom baru (nullable, backward-compatible)
@@ -186,7 +190,7 @@ class Payment extends Model
             'ovo' => 'OVO',
             'dana' => 'DANA',
             'linkaja' => 'LinkAja',
-            'bank_transfer' => $channel !== '' ? strtoupper($channel) . ' Virtual Account' : 'Bank Transfer',
+            'bank_transfer' => $channel !== '' ? strtoupper($channel).' Virtual Account' : 'Bank Transfer',
             'echannel' => 'Mandiri Bill',
             'bca_klikpay' => 'BCA KlikPay',
             'bri_epay' => 'BRI ePay',
@@ -195,7 +199,7 @@ class Payment extends Model
             'akulaku' => 'Akulaku',
             'kredivo' => 'Kredivo',
             'uob_ezpay' => 'UOB eZPay',
-            'cstore' => $channel !== '' ? 'Gerai ' . ucfirst($channel) : 'Gerai Retail',
+            'cstore' => $channel !== '' ? 'Gerai '.ucfirst($channel) : 'Gerai Retail',
             'manual_confirmation' => 'Manual Confirmation',
         ];
 

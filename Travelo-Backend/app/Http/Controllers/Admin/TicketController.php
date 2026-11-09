@@ -14,11 +14,11 @@ use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 /**
- * Staff-facing operations for the gate scanner.
+ * Gate-facing operations for the scanner.
  *
  * Authorization is enforced here (and again in TicketService for the
- * destination check): admins cover every destination, staff only the
- * destinations assigned in staff_destinations.
+ * destination check): admins cover every destination, owners only the
+ * destinations assigned in destination_user.
  */
 class TicketController extends Controller
 {
@@ -28,20 +28,21 @@ class TicketController extends Controller
     ) {}
 
     /**
-     * Camera + manual-token scanner used by admin and gate staff.
+     * Camera + manual-token scanner used by admin and owners.
      */
     public function scanner(Request $request): View
     {
-        $staff = $request->user();
+        $user = $request->user();
 
-        abort_unless($staff instanceof User && $staff->isStaffOrAdmin(), 403);
+        abort_unless($user instanceof User && $user->hasPermission('tickets.redeem'), 403);
 
-        $destinations = $staff->isAdmin()
+        $destinations = $user->isAdmin()
             ? collect()
-            : $staff->staffDestinations()->orderBy('name')->pluck('name');
+            : $user->destinations()->orderBy('name')->pluck('name');
 
         return view('admin.scanner', [
-            'isAdmin' => $staff->isAdmin(),
+            'isAdmin' => $user->isAdmin(),
+            'isGateStaff' => $user->isGateStaff(),
             'destinations' => $destinations,
         ]);
     }
@@ -51,9 +52,9 @@ class TicketController extends Controller
      */
     public function redeem(Request $request): JsonResponse
     {
-        $staff = $request->user();
+        $user = $request->user();
 
-        abort_unless($staff instanceof User && $staff->isStaffOrAdmin(), 403);
+        abort_unless($user instanceof User && $user->hasPermission('tickets.redeem'), 403);
 
         $validator = validator($request->all(), [
             'token' => 'required|string|max:2048',
@@ -67,13 +68,20 @@ class TicketController extends Controller
             ], 422);
         }
 
-        $result = $this->tickets->redeem((string) $request->input('token'), $staff);
+        $result = $this->tickets->redeem((string) $request->input('token'), $user);
+
+        // Gate staff only receive operational fields: valid/invalid, booker,
+        // package, people count and visit date. No money, email/phone,
+        // identity number, document, reference or destination.
+        $data = $user->isGateStaff()
+            ? $this->gateStaffScanPayload($result)
+            : $result['data'];
 
         if ($result['ok']) {
             return response()->json([
                 'success' => true,
                 'message' => $result['message'],
-                'data' => $result['data'],
+                'data' => $data,
             ]);
         }
 
@@ -87,8 +95,25 @@ class TicketController extends Controller
             'success' => false,
             'message' => $result['message'],
             'reason' => $result['reason'],
-            'data' => $result['data'],
+            'data' => $data,
         ], $status);
+    }
+
+    /**
+     * @param  array{ok: bool, reason: ?string, message: string, data: array<string, mixed>}  $result
+     * @return array<string, mixed>
+     */
+    private function gateStaffScanPayload(array $result): array
+    {
+        $data = $result['data'];
+
+        return array_filter([
+            'valid' => (bool) ($data['valid'] ?? $result['ok']),
+            'holder_name' => $data['holder_name'] ?? null,
+            'package' => $data['package'] ?? null,
+            'visitor_count' => $data['visitor_count'] ?? null,
+            'visit_date' => $data['visit_date'] ?? null,
+        ], static fn ($value) => $value !== null);
     }
 
     /**
@@ -96,15 +121,15 @@ class TicketController extends Controller
      */
     public function reissue(Request $request, Booking $booking): JsonResponse
     {
-        $staff = $request->user();
+        $user = $request->user();
 
-        abort_unless($staff instanceof User && $staff->isAdmin(), 403);
+        abort_unless($user instanceof User && $user->hasPermission('tickets.reissue'), 403);
 
         $booking->loadMissing('tourPackage.destination', 'payment');
 
         $result = $this->tickets->reissue($booking);
 
-        if (!$result['ok']) {
+        if (! $result['ok']) {
             return response()->json([
                 'success' => false,
                 'message' => $result['message'],
@@ -116,7 +141,7 @@ class TicketController extends Controller
             Booking::class,
             $booking->id,
             User::class,
-            $staff->id,
+            $user->id,
             ['ticket_version' => $booking->refresh()->ticket_version]
         );
 
@@ -136,15 +161,15 @@ class TicketController extends Controller
      */
     public function reviewDocument(Request $request, BookingVisitor $visitor): JsonResponse
     {
-        $staff = $request->user();
+        $user = $request->user();
 
-        abort_unless($staff instanceof User && $staff->isStaffOrAdmin(), 403);
+        abort_unless($user instanceof User && $user->hasPermission('visitor_documents.view'), 403);
 
         $visitor->loadMissing('booking.tourPackage.destination');
 
         $destinationId = $visitor->booking?->tourPackage?->destination_id;
 
-        abort_unless($staff->canRedeemForDestination($destinationId), 403);
+        abort_unless($user->canRedeemForDestination($destinationId), 403);
 
         $validator = validator($request->all(), [
             'status' => 'required|in:verified,rejected',
@@ -159,7 +184,7 @@ class TicketController extends Controller
             ], 422);
         }
 
-        if (!$visitor->has_document) {
+        if (! $visitor->has_document) {
             return response()->json([
                 'success' => false,
                 'message' => 'There is no document on file to review.',
@@ -169,7 +194,7 @@ class TicketController extends Controller
         $visitor->forceFill([
             'document_status' => $request->input('status'),
             'document_reviewed_at' => now(),
-            'document_reviewed_by' => $staff->id,
+            'document_reviewed_by' => $user->id,
             'document_rejection_reason' => $request->input('status') === BookingVisitor::DOC_REJECTED
                 ? $request->input('reason')
                 : null,
@@ -180,7 +205,7 @@ class TicketController extends Controller
             BookingVisitor::class,
             $visitor->id,
             User::class,
-            $staff->id,
+            $user->id,
             [
                 'booking_id' => $visitor->booking_id,
                 'status' => $visitor->document_status,
@@ -195,19 +220,19 @@ class TicketController extends Controller
     }
 
     /**
-     * Staff-only document view, scoped to the staff member's destination.
+     * Document view, scoped to the user's destination.
      */
     public function downloadDocument(Request $request, BookingVisitor $visitor)
     {
-        $staff = $request->user();
+        $user = $request->user();
 
-        abort_unless($staff instanceof User && $staff->isStaffOrAdmin(), 403);
+        abort_unless($user instanceof User && $user->hasPermission('visitor_documents.view'), 403);
 
         $visitor->loadMissing('booking.tourPackage.destination');
 
         $destinationId = $visitor->booking?->tourPackage?->destination_id;
 
-        abort_unless($staff->canRedeemForDestination($destinationId), 403);
+        abort_unless($user->canRedeemForDestination($destinationId), 403);
 
         return $this->documents->download($visitor);
     }

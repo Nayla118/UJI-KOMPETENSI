@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Booking;
-use App\Models\TourPackage;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -58,7 +57,16 @@ class BookingController extends Controller
      */
     public function show(Booking $booking): View
     {
-        $booking->load(['user', 'tourPackage.destination', 'payment']);
+        $booking->load([
+            'user',
+            'tourPackage.destination',
+            'payment',
+            'visitors',
+            'changeRequests.reviewer',
+            'promo',
+            'promoRedemption',
+        ]);
+
         return view('admin.bookings.show', compact('booking'));
     }
 

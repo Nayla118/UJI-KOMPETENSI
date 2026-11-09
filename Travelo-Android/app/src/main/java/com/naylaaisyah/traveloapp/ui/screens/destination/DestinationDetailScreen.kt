@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -42,6 +43,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.naylaaisyah.traveloapp.R
+import com.naylaaisyah.traveloapp.data.models.Destination
+import com.naylaaisyah.traveloapp.data.models.WishlistTypes
+import com.naylaaisyah.traveloapp.data.wishlist.WishlistKey
+import com.naylaaisyah.traveloapp.data.wishlist.WishlistToggleState
 import com.naylaaisyah.traveloapp.ui.components.ReviewEditorDialog
 import com.naylaaisyah.traveloapp.ui.components.TraveloEmptyState
 import com.naylaaisyah.traveloapp.ui.components.TraveloErrorState
@@ -55,6 +60,9 @@ import com.naylaaisyah.traveloapp.ui.components.TraveloReviewEligibilityCard
 import com.naylaaisyah.traveloapp.ui.components.TraveloReviewSummaryCard
 import com.naylaaisyah.traveloapp.ui.components.TraveloSectionHeader
 import com.naylaaisyah.traveloapp.ui.components.TraveloTourPackageRow
+import com.naylaaisyah.traveloapp.ui.components.WishlistHeartButton
+import com.naylaaisyah.traveloapp.ui.screens.favorites.WishlistEvent
+import com.naylaaisyah.traveloapp.ui.screens.favorites.WishlistViewModel
 import com.naylaaisyah.traveloapp.ui.theme.PlumInk
 import com.naylaaisyah.traveloapp.ui.theme.PlumMuted
 import com.naylaaisyah.traveloapp.ui.theme.Rosewood
@@ -73,15 +81,30 @@ fun DestinationDetailScreen(
     destinationId: Int,
     onBackClick: () -> Unit,
     onTourPackageClick: (Int) -> Unit,
-    viewModel: DestinationDetailViewModel = hiltViewModel()
+    onRequireLogin: () -> Unit = {},
+    /** Notification deep links to `review` scroll to the reviews section. */
+    focusReviews: Boolean = false,
+    focusReviewId: Int? = null,
+    viewModel: DestinationDetailViewModel = hiltViewModel(),
+    wishlistViewModel: WishlistViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val wishlistState by wishlistViewModel.toggleState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val reviewSavedMessage = stringResource(R.string.review_saved)
     var showReviewDialog by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(destinationId) {
         viewModel.loadDestination(destinationId)
+    }
+
+    LaunchedEffect(wishlistViewModel) {
+        wishlistViewModel.events.collect { event ->
+            when (event) {
+                is WishlistEvent.RequiresLogin -> onRequireLogin()
+                is WishlistEvent.Message -> snackbarHostState.showSnackbar(event.text)
+            }
+        }
     }
 
     LaunchedEffect(uiState.reviewSaved) {
@@ -114,6 +137,16 @@ fun DestinationDetailScreen(
                     onRateClick = {
                         viewModel.clearReviewActionError()
                         showReviewDialog = true
+                    },
+                    focusReviews = focusReviews,
+                    focusReviewId = focusReviewId,
+                    wishlistState = wishlistState,
+                    onToggleWishlist = { destination ->
+                        wishlistViewModel.toggle(
+                            WishlistTypes.DESTINATION,
+                            destination.id,
+                            destination.isWishlisted
+                        )
                     }
                 )
 
@@ -170,11 +203,25 @@ private fun DestinationContent(
     onRetryTours: () -> Unit,
     onRetryReviews: () -> Unit,
     onLoadMoreReviews: () -> Unit,
-    onRateClick: () -> Unit
+    onRateClick: () -> Unit,
+    focusReviews: Boolean,
+    focusReviewId: Int?,
+    wishlistState: WishlistToggleState,
+    onToggleWishlist: (Destination) -> Unit
 ) {
     val destination = state.destination ?: return
+    val listState = rememberLazyListState()
+
+    LaunchedEffect(focusReviews, focusReviewId, destination.id) {
+        if (focusReviews) {
+            // Hero image is item 0; item 1 contains the destination summary and
+            // the reviews header, so the review content is immediately visible.
+            listState.animateScrollToItem(1)
+        }
+    }
 
     LazyColumn(
+        state = listState,
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = TraveloSpacing.xl)
     ) {
@@ -208,6 +255,17 @@ private fun DestinationContent(
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
                         .padding(TraveloSpacing.md)
+                )
+
+                WishlistHeartButton(
+                    isWishlisted = wishlistState.isWishlisted(
+                        WishlistKey(WishlistTypes.DESTINATION, destination.id),
+                        destination.isWishlisted
+                    ),
+                    onClick = { onToggleWishlist(destination) },
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(TraveloSpacing.sm)
                 )
             }
         }

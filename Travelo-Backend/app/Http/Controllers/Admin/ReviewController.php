@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Destination;
 use App\Models\Review;
 use App\Models\User;
+use App\Services\PushNotificationService;
 use App\Services\ReviewService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -110,6 +111,16 @@ class ReviewController extends Controller
 
         if (! $result['ok']) {
             return back()->withErrors(['review' => 'The review could not be updated.']);
+        }
+
+        try {
+            app(PushNotificationService::class)
+                ->notifyReviewModerated($review->fresh(['destination', 'user']), $validated['action']);
+        } catch (\Throwable $e) {
+            \Log::warning('Review-moderation push notification failed', [
+                'review_id' => $review->id,
+                'error' => $e->getMessage(),
+            ]);
         }
 
         return back()->with(

@@ -15,7 +15,27 @@ sealed class Screen(val route: String) {
         fun createRoute(tourPackageId: Int, title: String, price: Int, maxPeople: Int) =
             "booking/$tourPackageId/${java.net.URLEncoder.encode(title, "UTF-8")}/$price/$maxPeople"
     }
-    data object MyBookings : Screen("my_bookings")
+    data object BookingDetail : Screen("booking_detail/{bookingId}") {
+        fun createRoute(bookingId: Int) = "booking_detail/$bookingId"
+    }
+    data object ETicket : Screen("e_ticket/{bookingId}") {
+        fun createRoute(bookingId: Int) = "e_ticket/$bookingId"
+    }
+    data object Review : Screen("review/{destinationId}?reviewId={reviewId}") {
+        fun createRoute(destinationId: Int, reviewId: Int? = null): String {
+            val base = "review/$destinationId"
+            return if (reviewId == null) base else "$base?reviewId=$reviewId"
+        }
+    }
+    data object MyBookings : Screen("my_bookings?notice={notice}") {
+        fun createRoute(notice: String? = null): String =
+            if (notice.isNullOrBlank()) {
+                "my_bookings"
+            } else {
+                "my_bookings?notice=" + android.net.Uri.encode(notice)
+            }
+    }
+    data object Favorites : Screen("favorites")
     data object TicketHistory : Screen("ticket_history")
     data object CompleteDocuments : Screen("complete_documents/{bookingId}") {
         fun createRoute(bookingId: Int) = "complete_documents/$bookingId"
